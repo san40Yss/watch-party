@@ -30,6 +30,7 @@
   //  - renderTextTracksNatively off so subtitles don't show up twice.
   $effect(() => {
     if (!player) return
+    const el = player
     const onProvider = (e) => {
       const p = e.detail
       if (p?.type === 'hls') {
@@ -37,8 +38,20 @@
         p.config = { ...p.config, renderTextTracksNatively: false }
       }
     }
-    player.addEventListener('provider-change', onProvider)
-    return () => player.removeEventListener('provider-change', onProvider)
+    // When the film changes, drop the previous source's subtitle tracks so the
+    // menu doesn't accumulate every film opened this session. The player element
+    // stays put (no teardown churn — which froze switching after a few cycles).
+    const onSourceChange = () => {
+      for (const tr of [...el.textTracks]) {
+        if (tr.kind === 'subtitles' || tr.kind === 'captions') el.textTracks.remove(tr)
+      }
+    }
+    el.addEventListener('provider-change', onProvider)
+    el.addEventListener('source-change', onSourceChange)
+    return () => {
+      el.removeEventListener('provider-change', onProvider)
+      el.removeEventListener('source-change', onSourceChange)
+    }
   })
 
   // Control seam. Two halves, deliberately kept apart:
@@ -86,15 +99,10 @@
 </script>
 
 {#if src}
-  <!-- Key on src so switching films fully tears down and rebuilds the player
-       (and its hls.js instance). Reusing the element accumulates subtitle
-       tracks from every source you've loaded. -->
-  {#key src}
-    <media-player bind:this={player} {title} {src}>
-      <media-provider></media-provider>
-      <media-video-layout></media-video-layout>
-    </media-player>
-  {/key}
+  <media-player bind:this={player} {title} {src}>
+    <media-provider></media-provider>
+    <media-video-layout></media-video-layout>
+  </media-player>
 {:else}
   <div class="placeholder">
     <svg class="ph-logo" viewBox="0 0 64 64" aria-hidden="true">
