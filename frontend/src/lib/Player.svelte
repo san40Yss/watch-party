@@ -91,7 +91,13 @@
     <media-video-layout></media-video-layout>
   </media-player>
 {:else}
-  <div class="placeholder">{placeholder}</div>
+  <div class="placeholder">
+    <svg class="ph-logo" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="18" fill="none" stroke="currentColor" stroke-width="3" />
+      <path d="M27.5 23.5 L43 32 L27.5 40.5 Z" fill="currentColor" />
+    </svg>
+    <span class="ph-text">{placeholder}</span>
+  </div>
 {/if}
 
 <style>
@@ -99,12 +105,21 @@
     width: 100%;
     height: 100%;
     --media-border-radius: 0;
+    /* Theme Vidstack's default controls to match the amber accent. */
+    --media-brand: var(--accent);
+    --media-focus-ring-color: var(--accent);
   }
   .placeholder {
-    color: #333;
-    font-size: 0.9rem;
-    display: grid;
-    place-items: center;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-4);
+    color: var(--text-faint);
+    padding: var(--sp-5);
+    text-align: center;
   }
+  .ph-logo { width: 54px; height: 54px; opacity: 0.3; }
+  .ph-text { font-size: var(--text-sm); max-width: 32ch; line-height: 1.5; }
 </style>

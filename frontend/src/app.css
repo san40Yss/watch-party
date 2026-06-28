@@ -1,0 +1,240 @@
+/* ============================================================================
+   Watch Party — design system (Cinematic Amber, OLED-dark)
+   Single source of design truth: tokens + base + reusable utilities.
+   Components reference these via var(--token); no raw hex in components.
+   ============================================================================ */
+
+:root {
+  /* --- Surfaces (OLED-deep, layered elevation) --- */
+  --bg: #0A0A0C;
+  --surface-1: #121216;   /* sidebar, cards */
+  --surface-2: #1A1A20;   /* inputs, hover */
+  --surface-3: #23232B;   /* active, overlays */
+  --border: #2A2A32;
+  --border-strong: #3A3A45;
+
+  /* --- Text (contrast-checked on --bg) --- */
+  --text: #ECECEE;        /* primary  ~15:1 */
+  --text-muted: #9C9CA6;  /* secondary ~5:1 */
+  --text-faint: #6B6B75;  /* labels   ~3:1 */
+
+  /* --- Accent: Cinematic Amber --- */
+  --accent: #E0A852;
+  --accent-hover: #EEB867;
+  --accent-press: #C9943F;
+  --accent-soft: rgba(224, 168, 82, 0.13);
+  --on-accent: #1A1206;   /* dark text on amber for AA contrast */
+
+  /* --- Semantic --- */
+  --success: #46B978;
+  --success-soft: rgba(70, 185, 120, 0.14);
+  --warn: #E0A852;
+  --warn-soft: rgba(224, 168, 82, 0.14);
+  --error: #E5575D;
+  --error-soft: rgba(229, 87, 93, 0.14);
+
+  /* --- Typography (system stack, Inter-like; no CDN dependency) --- */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --text-xs: 0.72rem;
+  --text-sm: 0.82rem;
+  --text-base: 0.94rem;
+  --text-lg: 1.1rem;
+  --text-xl: 1.45rem;
+
+  /* --- Spacing (4/8 rhythm) --- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-8: 48px;
+
+  /* --- Radius --- */
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 14px;
+  --r-full: 999px;
+
+  /* --- Elevation --- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 22px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --glow-accent: 0 0 24px rgba(224, 168, 82, 0.16);
+
+  /* --- Motion --- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 180ms;
+
+  /* --- Layers --- */
+  --z-overlay: 100;
+  --z-modal: 110;
+}
+
+/* --- Base reset --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A subtle cinematic vignette so the near-black has depth, not flatness. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% -10%, rgba(224, 168, 82, 0.05), transparent 60%);
+  z-index: 0;
+}
+
+/* --- Accessible focus ring (keyboard only) --- */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+/* --- Reusable controls --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 38px;
+  padding: 0 var(--sp-4);
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--r-md);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.btn:hover:not(:disabled) { background: var(--accent-hover); }
+.btn:active:not(:disabled) { transform: scale(0.97); background: var(--accent-press); }
+.btn:disabled { background: var(--surface-3); color: var(--text-faint); cursor: default; }
+
+.btn-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--surface-3); }
+.btn-ghost:active:not(:disabled) { background: var(--surface-3); }
+
+.btn-danger {
+  background: var(--error-soft);
+  color: var(--error);
+}
+.btn-danger:hover:not(:disabled) { background: rgba(229, 87, 93, 0.22); }
+
+/* Icon-only button (must carry an aria-label) */
+.btn-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.btn-icon:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
+.btn-icon:disabled { color: var(--text-faint); cursor: default; }
+
+/* Quiet text link/button */
+.link {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 0;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease);
+}
+.link:hover { color: var(--text); }
+
+/* Inputs */
+.input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.input::placeholder { color: var(--text-faint); }
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Section label */
+.section-label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* Tabular figures for codes / counts / timers (no layout shift) */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* --- Custom scrollbars --- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-full);
+  border: 2px solid var(--bg);
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* --- Respect reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

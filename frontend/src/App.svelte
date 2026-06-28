@@ -150,9 +150,15 @@
   <Login {onLogin} />
 {:else}
 <header>
-  <h1>Watch Party</h1>
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="18" fill="none" stroke="var(--accent)" stroke-width="4" />
+      <path d="M27.5 23.5 L43 32 L27.5 40.5 Z" fill="var(--accent)" />
+    </svg>
+    <h1>Watch&nbsp;Party</h1>
+  </div>
   <div class="header-right">
-    <span class="user">{user.username}</span>
+    <span class="user">{user.username}{#if user.is_admin}<span class="admin-tag">admin</span>{/if}</span>
     <button class="link" onclick={() => (showPassword = true)}>пароль</button>
     <button class="link" onclick={logout}>выйти</button>
   </div>
@@ -174,16 +180,18 @@
   <main class="player-area">
     {#if current && user.is_admin}
       <div class="controls-bar">
-        <select bind:value={quality} disabled={current.status === 'processing'} title="Качество H.264 (для HEVC)">
+        <select class="quality" bind:value={quality} disabled={current.status === 'processing'} title="Качество H.264 (для HEVC)" aria-label="Качество перекодирования">
           <option value={1080}>1080p</option>
           <option value={1440}>1440p · 2K</option>
           <option value={2160}>2160p · 4K</option>
         </select>
-        <button onclick={startProcessing} disabled={current.status === 'processing'}>
+        <button class="btn" onclick={startProcessing} disabled={current.status === 'processing'}>
           {processLabel}
         </button>
-        <button class="danger" onclick={deleteCurrent} disabled={current.status === 'processing'} title="Удалить из библиотеки">
-          ✕
+        <button class="btn-icon danger" onclick={deleteCurrent} disabled={current.status === 'processing'} aria-label="Удалить из библиотеки" title="Удалить из библиотеки">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M3 5h14M8 5V3.5h4V5m-6 0 .6 11h6.8L16 5" />
+          </svg>
         </button>
       </div>
     {/if}
@@ -199,83 +207,116 @@
 {/if}
 
 <style>
-  :global(body) {
-    margin: 0;
-    background: #0d0d0d;
-    color: #e0e0e0;
-    font-family: system-ui, -apple-system, sans-serif;
-  }
-  :global(#app) {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
   header {
-    padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid #1e1e1e;
+    position: relative;
+    z-index: 1;
+    padding: var(--sp-3) var(--sp-5);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--sp-3);
   }
-  header h1 { font-size: 1rem; font-weight: 600; letter-spacing: 0.02em; margin: 0; }
-  .header-right { display: flex; align-items: center; gap: 0.75rem; }
-  .user { font-size: 0.8rem; color: #666; }
-  .link {
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 0.8rem;
-    cursor: pointer;
-    padding: 0;
+  .brand { display: flex; align-items: center; gap: var(--sp-2); }
+  .logo { width: 26px; height: 26px; filter: drop-shadow(var(--glow-accent)); }
+  .brand h1 {
+    font-size: var(--text-base);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin: 0;
   }
-  .link:hover { color: #aaa; }
-  .danger { background: #3a1515; }
-  .danger:hover:not(:disabled) { background: #5a1f1f; }
+  .header-right { display: flex; align-items: center; gap: var(--sp-4); }
+  .user {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .admin-tag {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 6px;
+    border-radius: var(--r-full);
+    font-weight: 600;
+  }
 
   .layout {
     display: grid;
-    grid-template-columns: 300px 1fr;
+    grid-template-columns: 320px 1fr;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
+    position: relative;
+    z-index: 1;
   }
   .sidebar {
-    border-right: 1px solid #1e1e1e;
+    border-right: 1px solid var(--border);
     overflow-y: auto;
-    padding: 1rem;
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
   }
   .player-area {
     background: #000;
     position: relative;
     overflow: hidden;
   }
+
   .controls-bar {
     position: absolute;
-    top: 1rem;
-    right: 1rem;
+    top: var(--sp-3);
+    right: var(--sp-3);
     z-index: 10;
     display: flex;
-    gap: 0.5rem;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    background: rgba(10, 10, 12, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
   }
-  select {
-    background: #1a1a1a;
-    color: #ddd;
-    border: 1px solid #2a2a2a;
-    border-radius: 6px;
-    padding: 0.5rem;
-    font-size: 0.8rem;
-  }
-  button {
-    background: #1f6feb;
-    color: #fff;
-    border: none;
-    padding: 0.5rem 0.9rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
+  .quality {
+    appearance: none;
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 0 var(--sp-3);
+    height: 38px;
+    font: inherit;
+    font-size: var(--text-sm);
     cursor: pointer;
-    font-weight: 500;
   }
-  button:hover { background: #2d7ff9; }
-  button:disabled { background: #2a2a2a; color: #666; cursor: default; }
+  .quality:focus { outline: none; border-color: var(--accent); }
+  .danger { color: var(--error); }
+  .danger:hover:not(:disabled) { background: var(--error-soft); color: var(--error); }
+
+  /* Mobile: stack the player on top (sticky) with the panel scrolling below. */
+  @media (max-width: 720px) {
+    header { padding: var(--sp-3) var(--sp-4); }
+    .header-right { gap: var(--sp-3); }
+    .layout {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .player-area {
+      order: -1; /* show the player above the panel on phones */
+      aspect-ratio: 16 / 9;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .sidebar {
+      border-right: none;
+      overflow-y: visible;
+    }
+  }
 </style>

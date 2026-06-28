@@ -18,90 +18,111 @@
   }
 </script>
 
-<div class="sidebar-label">Библиотека</div>
+<div class="section-label lib-label">Библиотека</div>
 
 {#if videos.length === 0}
-  <span class="hint">Нет видео в библиотеке</span>
+  <p class="empty">Библиотека пуста</p>
 {:else}
-  {#each videos as v (v.id)}
-    <button
-      class="video-item"
-      class:active={v.id === currentId}
-      onclick={() => onSelect(v.id)}
-    >
-      <div class="video-title">{v.title}</div>
-      <div class="video-meta">
-        <span class="badge {v.status}">{statusText(v)}</span>
-        {#if v.video_codec}
-          <span class="codec">{v.video_codec}{v.hdr ? ' · HDR' : ''}</span>
-        {/if}
-      </div>
-      {#if v.status === 'processing'}
-        <div class="progress-track">
-          <div class="progress-fill" style="width:{v.progress || 0}%"></div>
+  <div class="list">
+    {#each videos as v (v.id)}
+      <button
+        class="video-item"
+        class:active={v.id === currentId}
+        onclick={() => onSelect(v.id)}
+      >
+        <div class="video-title">{v.title}</div>
+        <div class="video-meta">
+          <span class="badge {v.status}">
+            {#if v.status === 'ready'}
+              <svg viewBox="0 0 20 20" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M7 5v10l8-5z" /></svg>
+            {/if}
+            {statusText(v)}
+          </span>
+          {#if v.video_codec}
+            <span class="codec">{v.video_codec}{v.hdr ? ' · HDR' : ''}</span>
+          {/if}
         </div>
-      {/if}
-    </button>
-  {/each}
+        {#if v.status === 'processing'}
+          <div class="progress-track">
+            <div class="progress-fill" style="width:{v.progress || 0}%"></div>
+          </div>
+        {/if}
+      </button>
+    {/each}
+  </div>
 {/if}
 
 <style>
-  .sidebar-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #555;
-    margin-bottom: 0.75rem;
-  }
-  .hint { font-size: 0.8rem; color: #444; }
+  .lib-label { margin-bottom: var(--sp-3); }
+  .empty { font-size: var(--text-sm); color: var(--text-faint); margin: 0; }
+
+  .list { display: flex; flex-direction: column; gap: var(--sp-1); }
 
   .video-item {
     display: block;
     width: 100%;
     text-align: left;
-    background: none;
-    border: none;
-    padding: 0.6rem 0.75rem;
-    border-radius: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
     cursor: pointer;
-    margin-bottom: 0.25rem;
     color: inherit;
     font: inherit;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
-  .video-item:hover { background: #1a1a1a; }
-  .video-item.active { background: #1f1f1f; }
+  .video-item:hover { background: var(--surface-1); }
+  .video-item.active {
+    background: var(--surface-2);
+    border-left-color: var(--accent);
+  }
 
-  .video-title { font-size: 0.875rem; color: #ddd; }
+  .video-title {
+    font-size: var(--text-sm);
+    color: var(--text);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .video-meta {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.3rem;
-    font-size: 0.7rem;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
   }
   .badge {
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: var(--r-full);
+    font-size: var(--text-xs);
     font-weight: 600;
   }
-  .badge.pending { background: #2a2a2a; color: #888; }
-  .badge.processing { background: #3a2e00; color: #e0b000; }
-  .badge.ready { background: #06331c; color: #2ecc71; }
-  .badge.error { background: #3a0d0d; color: #e74c3c; }
-  .codec { color: #555; }
+  .badge.pending { background: var(--surface-3); color: var(--text-muted); }
+  .badge.processing { background: var(--warn-soft); color: var(--warn); }
+  .badge.ready { background: var(--success-soft); color: var(--success); }
+  .badge.error { background: var(--error-soft); color: var(--error); }
+  .codec {
+    font-size: var(--text-xs);
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
 
   .progress-track {
-    margin-top: 0.4rem;
+    margin-top: var(--sp-2);
     height: 4px;
-    border-radius: 2px;
-    background: #1e1e1e;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
     overflow: hidden;
   }
   .progress-fill {
     height: 100%;
-    background: #e0b000;
-    border-radius: 2px;
-    transition: width 0.3s ease;
+    background: var(--accent);
+    border-radius: var(--r-full);
+    transition: width 0.3s var(--ease);
   }
 </style>

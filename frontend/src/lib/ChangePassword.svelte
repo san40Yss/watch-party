@@ -35,19 +35,22 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onClose()} />
 
-<div class="overlay" onclick={onClose} role="presentation">
-  <form class="modal" onsubmit={submit} onclick={(e) => e.stopPropagation()}>
+<div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
+  <form class="modal" onsubmit={submit}>
     <h2>Сменить пароль</h2>
     {#if done}
-      <div class="ok">Пароль изменён ✓</div>
+      <div class="ok">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 6" /></svg>
+        Пароль изменён
+      </div>
     {:else}
-      <input type="password" placeholder="Текущий пароль" bind:value={current} autocomplete="current-password" />
-      <input type="password" placeholder="Новый пароль" bind:value={next} autocomplete="new-password" />
-      <input type="password" placeholder="Повтор нового пароля" bind:value={confirm} autocomplete="new-password" />
+      <input class="input" type="password" placeholder="Текущий пароль" bind:value={current} autocomplete="current-password" />
+      <input class="input" type="password" placeholder="Новый пароль" bind:value={next} autocomplete="new-password" />
+      <input class="input" type="password" placeholder="Повтор нового пароля" bind:value={confirm} autocomplete="new-password" />
       {#if error}<div class="err">{error}</div>{/if}
       <div class="actions">
-        <button type="button" class="ghost" onclick={onClose}>Отмена</button>
-        <button disabled={busy}>{busy ? 'Сохранение…' : 'Сохранить'}</button>
+        <button type="button" class="btn-ghost" onclick={onClose}>Отмена</button>
+        <button class="btn" disabled={busy}>{busy ? 'Сохранение…' : 'Сохранить'}</button>
       </div>
     {/if}
   </form>
@@ -57,44 +60,41 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
     display: grid;
     place-items: center;
-    z-index: 100;
+    padding: var(--sp-4);
+    z-index: var(--z-modal);
+    animation: fade var(--dur) var(--ease);
   }
   .modal {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-    width: 300px;
-    padding: 1.5rem;
-    background: #141414;
-    border: 1px solid #1e1e1e;
-    border-radius: 10px;
+    gap: var(--sp-3);
+    width: 100%;
+    max-width: 320px;
+    padding: var(--sp-5);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-3);
+    animation: pop var(--dur) var(--ease);
   }
-  h2 { font-size: 1rem; margin: 0 0 0.25rem; }
-  input {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    color: #e0e0e0;
-    padding: 0.6rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
+  h2 { font-size: var(--text-lg); font-weight: 700; margin: 0 0 var(--sp-1); }
+  .err { color: var(--error); font-size: var(--text-sm); }
+  .ok {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    color: var(--success);
+    font-size: var(--text-base);
+    font-weight: 600;
+    padding: var(--sp-3) 0;
   }
-  .err { color: #e74c3c; font-size: 0.8rem; }
-  .ok { color: #2ecc71; font-size: 0.9rem; text-align: center; padding: 0.5rem 0; }
-  .actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.25rem; }
-  button {
-    background: #1f6feb;
-    color: #fff;
-    border: none;
-    padding: 0.5rem 0.9rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    font-weight: 500;
-  }
-  button:disabled { background: #2a2a2a; color: #666; }
-  .ghost { background: #222; }
-  .ghost:hover { background: #2c2c2c; }
+  .actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-1); }
+
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes pop { from { opacity: 0; transform: scale(0.96) translateY(6px); } }
 </style>

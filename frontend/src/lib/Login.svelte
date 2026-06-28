@@ -37,38 +37,34 @@
 </script>
 
 <div class="login-wrap">
-  <form class="login" onsubmit={submit}>
-    <h1>Watch Party</h1>
-
-    <div class="tabs">
-      <button
-        type="button"
-        class:active={!isRegister}
-        onclick={() => switchMode('login')}
-      >Войти</button>
-      <button
-        type="button"
-        class:active={isRegister}
-        onclick={() => switchMode('register')}
-      >Регистрация</button>
+  <form class="card" onsubmit={submit}>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="18" fill="none" stroke="var(--accent)" stroke-width="4" />
+        <path d="M27.5 23.5 L43 32 L27.5 40.5 Z" fill="var(--accent)" />
+      </svg>
+      <h1>Watch Party</h1>
+      <p class="tagline">Смотрите свою медиатеку вместе</p>
     </div>
 
+    <div class="tabs">
+      <button type="button" class:active={!isRegister} onclick={() => switchMode('login')}>Войти</button>
+      <button type="button" class:active={isRegister} onclick={() => switchMode('register')}>Регистрация</button>
+    </div>
+
+    <input class="input" placeholder="Логин" bind:value={username} autocomplete="username" />
     <input
-      placeholder="Логин"
-      bind:value={username}
-      autocomplete="username"
-    />
-    <input
+      class="input"
       placeholder="Пароль"
       type="password"
       bind:value={password}
       autocomplete={isRegister ? 'new-password' : 'current-password'}
     />
     {#if isRegister}
-      <div class="hint">Логин от 3 символов, пароль от 6.</div>
+      <div class="hint">Логин от 3 символов, пароль от 6</div>
     {/if}
     {#if error}<div class="err">{error}</div>{/if}
-    <button disabled={busy}>
+    <button class="btn submit" disabled={busy}>
       {busy
         ? (isRegister ? 'Создание…' : 'Вход…')
         : (isRegister ? 'Создать аккаунт' : 'Войти')}
@@ -78,62 +74,53 @@
 
 <style>
   .login-wrap {
-    height: 100vh;
+    min-height: 100dvh;
     display: grid;
     place-items: center;
-    background: #0d0d0d;
+    padding: var(--sp-4);
+    position: relative;
+    z-index: 1;
   }
-  .login {
+  .card {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    width: 280px;
-    padding: 2rem;
-    background: #141414;
-    border: 1px solid #1e1e1e;
-    border-radius: 10px;
+    gap: var(--sp-3);
+    width: 100%;
+    max-width: 320px;
+    padding: var(--sp-6);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-3);
   }
-  h1 { font-size: 1.1rem; margin: 0 0 0.5rem; text-align: center; }
+  .brand { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+  .logo { width: 44px; height: 44px; filter: drop-shadow(var(--glow-accent)); }
+  h1 { font-size: var(--text-lg); font-weight: 700; margin: 0; }
+  .tagline { font-size: var(--text-sm); color: var(--text-muted); margin: 0; text-align: center; }
 
   .tabs {
     display: flex;
-    gap: 0.25rem;
-    background: #1a1a1a;
-    border-radius: 6px;
-    padding: 0.2rem;
+    gap: var(--sp-1);
+    background: var(--surface-2);
+    border-radius: var(--r-md);
+    padding: 4px;
   }
   .tabs button {
     flex: 1;
     background: none;
     border: none;
-    color: #888;
-    padding: 0.4rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: var(--sp-2);
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-size: var(--text-sm);
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
+    transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
   }
-  .tabs button.active { background: #2a2a2a; color: #e0e0e0; }
+  .tabs button.active { background: var(--surface-3); color: var(--text); }
 
-  input {
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    color: #e0e0e0;
-    padding: 0.6rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-  }
-  .hint { font-size: 0.72rem; color: #555; }
-  .err { color: #e74c3c; font-size: 0.8rem; }
-  button {
-    background: #1f6feb;
-    color: #fff;
-    border: none;
-    padding: 0.6rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    font-weight: 500;
-  }
-  button:disabled { background: #2a2a2a; color: #666; }
+  .hint { font-size: var(--text-xs); color: var(--text-faint); }
+  .err { color: var(--error); font-size: var(--text-sm); }
+  .submit { width: 100%; min-height: 42px; margin-top: var(--sp-1); }
 </style>

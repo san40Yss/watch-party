@@ -61,41 +61,61 @@
   ondragleave={() => (dragging = false)}
   ondrop={onDrop}
 >
-  + Загрузить видео
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 16V4m0 0L7 9m5-5 5 5M5 18v1a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1" />
+  </svg>
+  <span class="dz-title">Загрузить видео</span>
+  <span class="dz-sub">или перетащите файлы сюда</span>
 </div>
 
-{#each uploads as u (u.name)}
-  <div class="up">
-    <div class="up-row">
-      <span class="up-name">{u.name}</span>
-      <span class="up-pct">
-        {u.status === 'done' ? '✓' : u.status === 'error' ? '✕' : `${Math.round(u.progress)}%`}
-      </span>
-    </div>
-    <div class="up-track">
-      <div class="up-fill" class:err={u.status === 'error'} style="width:{u.progress}%"></div>
-    </div>
+{#if uploads.length}
+  <div class="uploads">
+    {#each uploads as u (u.name)}
+      <div class="up">
+        <div class="up-row">
+          <span class="up-name">{u.name}</span>
+          <span class="up-pct tabular" class:done={u.status === 'done'} class:err={u.status === 'error'}>
+            {u.status === 'done' ? 'готово' : u.status === 'error' ? 'ошибка' : `${Math.round(u.progress)}%`}
+          </span>
+        </div>
+        <div class="up-track">
+          <div class="up-fill" class:err={u.status === 'error'} style="width:{u.progress}%"></div>
+        </div>
+      </div>
+    {/each}
   </div>
-{/each}
+{/if}
 
 <style>
   .dropzone {
-    border: 1px dashed #2a2a2a;
-    border-radius: 8px;
-    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5) var(--sp-3);
     text-align: center;
-    font-size: 0.8rem;
-    color: #888;
+    color: var(--text-muted);
     cursor: pointer;
-    margin-bottom: 1rem;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
-  .dropzone:hover, .dropzone.dragging { border-color: #1f6feb; color: #ddd; }
+  .dropzone:hover,
+  .dropzone.dragging {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--accent-soft);
+  }
+  .dz-title { font-size: var(--text-sm); font-weight: 600; }
+  .dz-sub { font-size: var(--text-xs); color: var(--text-faint); }
 
-  .up { margin-bottom: 0.6rem; }
-  .up-row { display: flex; justify-content: space-between; font-size: 0.72rem; color: #aaa; }
-  .up-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-  .up-track { height: 4px; background: #1e1e1e; border-radius: 2px; margin-top: 0.3rem; overflow: hidden; }
-  .up-fill { height: 100%; background: #1f6feb; transition: width 0.2s; }
-  .up-fill.err { background: #e74c3c; }
+  .uploads { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-3); }
+  .up-row { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--text-xs); color: var(--text-muted); }
+  .up-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .up-pct { flex-shrink: 0; }
+  .up-pct.done { color: var(--success); }
+  .up-pct.err { color: var(--error); }
+  .up-track { height: 5px; background: var(--surface-3); border-radius: var(--r-full); margin-top: var(--sp-1); overflow: hidden; }
+  .up-fill { height: 100%; background: var(--accent); border-radius: var(--r-full); transition: width 0.2s var(--ease); }
+  .up-fill.err { background: var(--error); }
 </style>

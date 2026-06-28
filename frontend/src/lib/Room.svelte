@@ -43,116 +43,178 @@
 </script>
 
 <div class="room-panel">
-  <div class="sidebar-label">Вечеринка</div>
+  <div class="section-label">Вечеринка</div>
 
   {#if !room.id}
-    <button class="primary" onclick={startParty} disabled={!currentVideoId || busy}>
-      Начать вечеринку
-    </button>
-    <div class="join">
-      <input placeholder="Код" bind:value={code} maxlength="6" />
-      <button onclick={joinByCode} disabled={!code || busy}>Войти</button>
+    <div class="card">
+      <button class="btn start" onclick={startParty} disabled={!currentVideoId || busy}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        Начать вечеринку
+      </button>
+      {#if !currentVideoId}
+        <p class="hint">Выберите видео из библиотеки, чтобы начать</p>
+      {/if}
+
+      <div class="divider"><span>или</span></div>
+
+      <div class="join">
+        <input class="input code-input" placeholder="КОД" bind:value={code} maxlength="6" aria-label="Код комнаты" />
+        <button class="btn-ghost" onclick={joinByCode} disabled={!code || busy}>Войти</button>
+      </div>
+      {#if err}<div class="err">{err}</div>{/if}
     </div>
-    {#if err}<div class="err">{err}</div>{/if}
   {:else}
-    <div class="room-head">
-      <span class="code">{room.id}</span>
-      <span class="dot" class:on={room.connected}></span>
-      <button class="link" onclick={leave}>покинуть</button>
-    </div>
-    <button class="copy" onclick={copy}>
-      {copied ? 'Скопировано ✓' : 'Копировать ссылку'}
-    </button>
-    <div class="members">
-      {#each room.members as m (m.username)}
-        <div class="member">
-          <span>{m.username}</span>
-          {#if m.isHost}<span class="badge">хост</span>{/if}
+    <div class="card live">
+      <div class="room-head">
+        <div class="code-block">
+          <span class="code tabular">{room.id}</span>
+          <span class="status">
+            <span class="dot" class:on={room.connected}></span>
+            {room.connected ? 'в эфире' : 'подключение…'}
+          </span>
         </div>
-      {/each}
+        <button class="link" onclick={leave}>покинуть</button>
+      </div>
+
+      <button class="btn-ghost copy" onclick={copy}>
+        {#if copied}
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10 4 4 8-9" /></svg>
+          Скопировано
+        {:else}
+          <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 12a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.8.8M12 8a3 3 0 0 0-4.2 0L5.5 10.3a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
+          Копировать ссылку
+        {/if}
+      </button>
+
+      <div class="members">
+        {#each room.members as m (m.username)}
+          <div class="member">
+            <span class="avatar" class:host={m.isHost}>{m.username.slice(0, 1).toUpperCase()}</span>
+            <span class="mname">{m.username}</span>
+            {#if m.isHost}<span class="badge">хост</span>{/if}
+          </div>
+        {/each}
+      </div>
+
+      {#if !room.isHost}
+        <div class="follow-note">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+          Воспроизведение ведёт хост
+        </div>
+      {/if}
     </div>
-    {#if !room.isHost}
-      <div class="follow-note">▶ Воспроизведение ведёт хост</div>
-    {/if}
   {/if}
 </div>
 
 <style>
-  .room-panel { margin-bottom: 1.25rem; }
-  .sidebar-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #555;
-    margin-bottom: 0.6rem;
-  }
-  button {
-    background: #1f6feb;
-    color: #fff;
-    border: none;
-    padding: 0.5rem 0.8rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    font-weight: 500;
-  }
-  button:hover:not(:disabled) { background: #2d7ff9; }
-  button:disabled { background: #2a2a2a; color: #666; cursor: default; }
-  .primary { width: 100%; }
+  .section-label { margin-bottom: var(--sp-3); }
 
-  .join { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
-  .join input {
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+  .card.live { box-shadow: inset 0 0 0 1px var(--accent-soft), var(--shadow-2); }
+
+  .start { width: 100%; }
+  .hint { margin: 0; font-size: var(--text-xs); color: var(--text-faint); text-align: center; }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    color: var(--text-faint);
+    font-size: var(--text-xs);
+  }
+  .divider::before,
+  .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .join { display: flex; gap: var(--sp-2); }
+  .code-input {
     flex: 1;
     min-width: 0;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    color: #e0e0e0;
-    padding: 0.5rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
     text-transform: uppercase;
+    letter-spacing: 0.14em;
+    text-align: center;
+    font-family: var(--font-mono);
   }
-  .err { color: #e74c3c; font-size: 0.75rem; margin-top: 0.4rem; }
+  .err { color: var(--error); font-size: var(--text-xs); }
 
-  .room-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
+  .room-head { display: flex; align-items: flex-start; gap: var(--sp-3); }
+  .code-block { display: flex; flex-direction: column; gap: 2px; }
   .code {
-    font-family: ui-monospace, monospace;
-    font-size: 1rem;
-    letter-spacing: 0.1em;
-    color: #e0e0e0;
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--accent);
+    line-height: 1;
   }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: #555; }
-  .dot.on { background: #2ecc71; }
-  .link {
-    margin-left: auto;
-    background: none;
-    color: #666;
-    padding: 0;
-    font-size: 0.75rem;
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
-  .link:hover { color: #aaa; background: none; }
-  .copy { width: 100%; background: #222; }
-  .copy:hover:not(:disabled) { background: #2c2c2c; }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: var(--r-full);
+    background: var(--text-faint);
+    transition: background var(--dur) var(--ease);
+  }
+  .dot.on {
+    background: var(--success);
+    box-shadow: 0 0 0 3px var(--success-soft);
+  }
+  .link { margin-left: auto; }
+  .copy { width: 100%; }
 
-  .members { margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.3rem; }
-  .member {
+  .members { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .member { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--text-sm); color: var(--text); }
+  .avatar {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+  .avatar.host { background: var(--accent-soft); color: var(--accent); }
+  .mname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    margin-left: auto;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: var(--r-full);
+    font-weight: 600;
+  }
+  .follow-note {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    color: #bbb;
+    gap: var(--sp-2);
+    font-size: var(--text-xs);
+    color: var(--accent);
+    padding-top: var(--sp-1);
   }
-  .badge {
-    font-size: 0.65rem;
-    background: #06331c;
-    color: #2ecc71;
-    padding: 0.05rem 0.35rem;
-    border-radius: 4px;
-  }
-  .follow-note { margin-top: 0.6rem; font-size: 0.75rem; color: #e0b000; }
 </style>
