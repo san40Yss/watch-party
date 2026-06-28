@@ -1,0 +1,31 @@
+# OS / editor
+.DS_Store
+.claude/
+
+# Secrets & local config
+.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Go build output
+/watchparty
+
+# Local mount dirs & processed output
+testmedia/
+processed-data/
+
+# Media files (never commit video)
+*.mkv
+*.mp4
+*.m2ts
+*.ts
+
+# Personal / scratch — kept locally, not shipped
+frontend/public/amam.html
+PROJECT_CONTEXT.md
+media-info-examples
+*_webrip.txt
+*_bdinfo.txt
+*_UHD.txt

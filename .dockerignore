@@ -1,0 +1,11 @@
+# Keep the Go app build context small — exclude the frontend (built separately),
+# media samples, and other non-Go files.
+frontend
+web
+testmedia
+mediainfo
+*.md
+*.txt
+*.zip
+.git
+.env

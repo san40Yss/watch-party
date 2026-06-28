@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: watchparty
+      POSTGRES_USER: wp
+      POSTGRES_PASSWORD: wp
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wp -d watchparty"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://wp:wp@db:5432/watchparty?sslmode=disable
+      MEDIA_ROOT: /media
+      PROCESSED_ROOT: /processed
+      # Real accounts now exist — require authentication (no anonymous fallback).
+      DEV_AUTO_LOGIN: "false"
+    volumes:
+      # Set MEDIA_DIR in .env to point to your actual media folder on the host.
+      # Default falls back to ./testmedia (for quick smoke tests with small files).
+      # Writable: tus uploads land here (staged in /media/.uploads, then moved in).
+      - ${MEDIA_DIR:-./testmedia}:/media
+      # Processed (browser-ready) MP4s — app writes, nginx reads.
+      # Host bind-mount (real disk), not a Docker volume, so big files aren't
+      # capped by the Docker VM disk image. Set PROCESSED_DIR in .env.
+      - ${PROCESSED_DIR:-./processed-data}:/processed
+
+  nginx:
+    # Built image = nginx + the compiled Svelte SPA baked into the web root.
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # nginx also needs direct access to /media to serve file bytes via X-Accel-Redirect
+      - ${MEDIA_DIR:-./testmedia}:/media:ro
+      - ${PROCESSED_DIR:-./processed-data}:/processed:ro
+
+volumes:
+  pgdata:
