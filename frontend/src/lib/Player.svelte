@@ -86,10 +86,15 @@
 </script>
 
 {#if src}
-  <media-player bind:this={player} {title} {src}>
-    <media-provider></media-provider>
-    <media-video-layout></media-video-layout>
-  </media-player>
+  <!-- Key on src so switching films fully tears down and rebuilds the player
+       (and its hls.js instance). Reusing the element accumulates subtitle
+       tracks from every source you've loaded. -->
+  {#key src}
+    <media-player bind:this={player} {title} {src}>
+      <media-provider></media-provider>
+      <media-video-layout></media-video-layout>
+    </media-player>
+  {/key}
 {:else}
   <div class="placeholder">
     <svg class="ph-logo" viewBox="0 0 64 64" aria-hidden="true">

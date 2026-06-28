@@ -120,16 +120,33 @@ func packageAV(ctx context.Context, src, outDir string, plan *Plan, targetHeight
 }
 
 // videoStartPTS returns the first video segment's start time as a 90 kHz PTS
-// value (for the WebVTT X-TIMESTAMP-MAP). Returns 0 if it can't be read.
+// value (for the WebVTT X-TIMESTAMP-MAP). MPEG-TS muxing adds a ~1.48s delay, so
+// subtitles (extracted from 0) must be offset by it or they show up early.
+//
+// It first reads the container start_time; if that's missing/zero (seen on
+// copied — not transcoded — streams, where the field can probe as empty right
+// after muxing), it falls back to the first video packet's PTS, which carries
+// the delay reliably. Returns 0 only if both probes fail.
 func videoStartPTS(ctx context.Context, outDir string) int64 {
 	seg := filepath.Join(outDir, "stream_video", "seg_000.ts")
-	out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
-		"-select_streams", "v:0", "-show_entries", "stream=start_time",
-		"-of", "default=noprint_wrappers=1:nokey=1", seg).Output()
-	if err != nil {
-		return 0
+
+	probe := func(args ...string) float64 {
+		full := append([]string{"-v", "error", "-select_streams", "v:0"}, args...)
+		full = append(full, "-of", "default=noprint_wrappers=1:nokey=1", seg)
+		out, err := exec.CommandContext(ctx, "ffprobe", full...).Output()
+		if err != nil {
+			return 0
+		}
+		// A packet probe can emit several lines; take the first.
+		first := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]
+		v, _ := strconv.ParseFloat(strings.TrimSpace(first), 64)
+		return v
 	}
-	st, _ := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+
+	st := probe("-show_entries", "stream=start_time")
+	if st <= 0 {
+		st = probe("-show_entries", "packet=pts_time", "-read_intervals", "%+#1")
+	}
 	return int64(st*90000 + 0.5)
 }
 
