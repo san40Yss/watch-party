@@ -1,5 +1,6 @@
 <script>
   import { room, create, join, leave, shareLink } from './room.svelte.js'
+  import { t } from './i18n.svelte.js'
 
   let { currentVideoId } = $props()
   let code = $state('')
@@ -13,7 +14,7 @@
     try {
       await create(currentVideoId)
     } catch {
-      err = 'Не удалось создать комнату'
+      err = t('err_create_room')
     } finally {
       busy = false
     }
@@ -25,7 +26,7 @@
     try {
       await join(code.trim().toUpperCase())
     } catch {
-      err = 'Комната не найдена'
+      err = t('err_room_not_found')
     } finally {
       busy = false
     }
@@ -43,7 +44,7 @@
 </script>
 
 <div class="room-panel">
-  <div class="section-label">Вечеринка</div>
+  <div class="section-label">{t('party')}</div>
 
   {#if !room.id}
     <div class="card">
@@ -51,17 +52,17 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
           <path d="M8 5v14l11-7z" />
         </svg>
-        Начать вечеринку
+        {t('start_party')}
       </button>
       {#if !currentVideoId}
-        <p class="hint">Выберите видео из библиотеки, чтобы начать</p>
+        <p class="hint">{t('pick_video')}</p>
       {/if}
 
-      <div class="divider"><span>или</span></div>
+      <div class="divider"><span>{t('or')}</span></div>
 
       <div class="join">
-        <input class="input code-input" placeholder="КОД" bind:value={code} maxlength="6" aria-label="Код комнаты" />
-        <button class="btn-ghost" onclick={joinByCode} disabled={!code || busy}>Войти</button>
+        <input class="input code-input" placeholder={t('code')} bind:value={code} maxlength="6" aria-label={t('room_code_aria')} />
+        <button class="btn-ghost" onclick={joinByCode} disabled={!code || busy}>{t('join')}</button>
       </div>
       {#if err}<div class="err">{err}</div>{/if}
     </div>
@@ -72,19 +73,19 @@
           <span class="code tabular">{room.id}</span>
           <span class="status">
             <span class="dot" class:on={room.connected}></span>
-            {room.connected ? 'в эфире' : 'подключение…'}
+            {room.connected ? t('live') : t('connecting')}
           </span>
         </div>
-        <button class="link" onclick={leave}>покинуть</button>
+        <button class="link" onclick={leave}>{t('leave')}</button>
       </div>
 
       <button class="btn-ghost copy" onclick={copy}>
         {#if copied}
           <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10 4 4 8-9" /></svg>
-          Скопировано
+          {t('copied')}
         {:else}
           <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 12a3 3 0 0 0 4.2 0l2.3-2.3a3 3 0 0 0-4.2-4.2l-.8.8M12 8a3 3 0 0 0-4.2 0L5.5 10.3a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
-          Копировать ссылку
+          {t('copy_link')}
         {/if}
       </button>
 
@@ -93,7 +94,7 @@
           <div class="member">
             <span class="avatar" class:host={m.isHost}>{m.username.slice(0, 1).toUpperCase()}</span>
             <span class="mname">{m.username}</span>
-            {#if m.isHost}<span class="badge">хост</span>{/if}
+            {#if m.isHost}<span class="badge">{t('host')}</span>{/if}
           </div>
         {/each}
       </div>
@@ -101,7 +102,7 @@
       {#if !room.isHost}
         <div class="follow-note">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
-          Воспроизведение ведёт хост
+          {t('host_controls')}
         </div>
       {/if}
     </div>

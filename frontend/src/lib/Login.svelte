@@ -1,5 +1,7 @@
 <script>
   import * as api from './api.js'
+  import { t, tServer } from './i18n.svelte.js'
+  import LangToggle from './LangToggle.svelte'
 
   let { onLogin } = $props()
   let mode = $state('login') // 'login' | 'register'
@@ -25,11 +27,11 @@
         : await api.login(username, password)
       onLogin(user)
     } catch (err) {
-      // Backend sends a friendly message for register (e.g. "имя занято");
+      // Register surfaces the backend's message (translated via tServer);
       // login deliberately returns a generic one.
       error = isRegister
-        ? err.message || 'Не удалось зарегистрироваться'
-        : 'Неверный логин или пароль'
+        ? tServer(err.message) || t('err_register')
+        : t('err_credentials')
     } finally {
       busy = false
     }
@@ -37,6 +39,7 @@
 </script>
 
 <div class="login-wrap">
+  <div class="lang-corner"><LangToggle /></div>
   <form class="card" onsubmit={submit}>
     <div class="brand">
       <svg class="logo" viewBox="0 0 64 64" aria-hidden="true">
@@ -44,30 +47,30 @@
         <path d="M27.5 23.5 L43 32 L27.5 40.5 Z" fill="var(--accent)" />
       </svg>
       <h1>Watch Party</h1>
-      <p class="tagline">Смотрите свою медиатеку вместе</p>
+      <p class="tagline">{t('tagline')}</p>
     </div>
 
     <div class="tabs">
-      <button type="button" class:active={!isRegister} onclick={() => switchMode('login')}>Войти</button>
-      <button type="button" class:active={isRegister} onclick={() => switchMode('register')}>Регистрация</button>
+      <button type="button" class:active={!isRegister} onclick={() => switchMode('login')}>{t('sign_in')}</button>
+      <button type="button" class:active={isRegister} onclick={() => switchMode('register')}>{t('sign_up')}</button>
     </div>
 
-    <input class="input" placeholder="Логин" bind:value={username} autocomplete="username" />
+    <input class="input" placeholder={t('username')} bind:value={username} autocomplete="username" />
     <input
       class="input"
-      placeholder="Пароль"
+      placeholder={t('password')}
       type="password"
       bind:value={password}
       autocomplete={isRegister ? 'new-password' : 'current-password'}
     />
     {#if isRegister}
-      <div class="hint">Логин от 3 символов, пароль от 6</div>
+      <div class="hint">{t('register_hint')}</div>
     {/if}
     {#if error}<div class="err">{error}</div>{/if}
     <button class="btn submit" disabled={busy}>
       {busy
-        ? (isRegister ? 'Создание…' : 'Вход…')
-        : (isRegister ? 'Создать аккаунт' : 'Войти')}
+        ? (isRegister ? t('creating') : t('signing_in'))
+        : (isRegister ? t('create_account') : t('sign_in'))}
     </button>
   </form>
 </div>
@@ -81,6 +84,7 @@
     position: relative;
     z-index: 1;
   }
+  .lang-corner { position: absolute; top: var(--sp-4); right: var(--sp-4); }
   .card {
     display: flex;
     flex-direction: column;

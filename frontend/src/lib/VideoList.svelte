@@ -1,27 +1,29 @@
 <script>
+  import { t } from './i18n.svelte.js'
+
   let { videos, currentId, onSelect, etas = {} } = $props()
 
-  const STATUS_LABEL = {
-    pending: 'не обработано',
-    processing: 'обработка',
-    ready: 'готово',
-    error: 'ошибка',
+  const STATUS_KEY = {
+    pending: 'st_pending',
+    processing: 'st_processing',
+    ready: 'st_ready',
+    error: 'st_error',
   }
 
   function statusText(v) {
     if (v.status === 'processing') {
       const pct = Math.round(v.progress || 0)
       const eta = etas[v.id]
-      return eta != null ? `обработка ${pct}% · ~${eta} мин` : `обработка ${pct}%`
+      return eta != null ? t('lib_processing_eta', { pct, min: eta }) : t('lib_processing', { pct })
     }
-    return STATUS_LABEL[v.status] || v.status
+    return t(STATUS_KEY[v.status]) || v.status
   }
 </script>
 
-<div class="section-label lib-label">Библиотека</div>
+<div class="section-label lib-label">{t('library')}</div>
 
 {#if videos.length === 0}
-  <p class="empty">Библиотека пуста</p>
+  <p class="empty">{t('library_empty')}</p>
 {:else}
   <div class="list">
     {#each videos as v (v.id)}

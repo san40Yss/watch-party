@@ -7,7 +7,9 @@
   import Upload from './lib/Upload.svelte'
   import ChangePassword from './lib/ChangePassword.svelte'
   import Room from './lib/Room.svelte'
+  import LangToggle from './lib/LangToggle.svelte'
   import { room, setUser, attachController, localAction, join as joinRoom, storedRoomId } from './lib/room.svelte.js'
+  import { t } from './lib/i18n.svelte.js'
 
   let videos = $state([])
   let currentId = $state(null)
@@ -63,13 +65,13 @@
 
   const placeholder = $derived(
     !current
-      ? 'Выберите видео'
+      ? t('ph_select')
       : current.status === 'processing'
-        ? `Обработка ${Math.round(current.progress || 0)}%` +
-          (etas[current.id] != null ? ` · осталось ~${etas[current.id]} мин` : '…')
+        ? t('ph_processing', { pct: Math.round(current.progress || 0) }) +
+          (etas[current.id] != null ? t('ph_eta', { min: etas[current.id] }) : t('ph_dots'))
         : current.status === 'error'
-          ? `Ошибка: ${current.error || 'обработки'}`
-          : 'Нажмите «Обработать»'
+          ? t('ph_error', { msg: current.error || t('ph_error_generic') })
+          : t('ph_press_process')
   )
 
   async function refresh() {
@@ -96,7 +98,7 @@
 
   async function deleteCurrent() {
     if (!current) return
-    if (!confirm(`Удалить «${current.title}» из библиотеки? Исходный файл останется.`)) return
+    if (!confirm(t('confirm_delete', { title: current.title }))) return
     await api.deleteVideo(current.id)
     currentId = null
     await refresh()
@@ -111,10 +113,10 @@
     !current
       ? ''
       : current.status === 'processing'
-        ? `Обработка ${Math.round(current.progress || 0)}%`
+        ? t('processing_pct', { pct: Math.round(current.progress || 0) })
         : current.status === 'ready'
-          ? 'Переобработать'
-          : 'Обработать'
+          ? t('reprocess')
+          : t('process')
   )
 
   // Shared by initial load and login: identify the user to the room store, load
@@ -158,9 +160,10 @@
     <h1>Watch&nbsp;Party</h1>
   </div>
   <div class="header-right">
+    <LangToggle />
     <span class="user">{user.username}{#if user.is_admin}<span class="admin-tag">admin</span>{/if}</span>
-    <button class="link" onclick={() => (showPassword = true)}>пароль</button>
-    <button class="link" onclick={logout}>выйти</button>
+    <button class="link" onclick={() => (showPassword = true)}>{t('hdr_password')}</button>
+    <button class="link" onclick={logout}>{t('hdr_logout')}</button>
   </div>
 </header>
 
@@ -180,7 +183,7 @@
   <main class="player-area">
     {#if current && user.is_admin}
       <div class="controls-bar">
-        <select class="quality" bind:value={quality} disabled={current.status === 'processing'} title="Качество H.264 (для HEVC)" aria-label="Качество перекодирования">
+        <select class="quality" bind:value={quality} disabled={current.status === 'processing'} aria-label={t('quality_aria')}>
           <option value={1080}>1080p</option>
           <option value={1440}>1440p · 2K</option>
           <option value={2160}>2160p · 4K</option>
@@ -188,7 +191,7 @@
         <button class="btn" onclick={startProcessing} disabled={current.status === 'processing'}>
           {processLabel}
         </button>
-        <button class="btn-icon danger" onclick={deleteCurrent} disabled={current.status === 'processing'} aria-label="Удалить из библиотеки" title="Удалить из библиотеки">
+        <button class="btn-icon danger" onclick={deleteCurrent} disabled={current.status === 'processing'} aria-label={t('delete_video')} title={t('delete_video')}>
           <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
             <path d="M3 5h14M8 5V3.5h4V5m-6 0 .6 11h6.8L16 5" />
           </svg>

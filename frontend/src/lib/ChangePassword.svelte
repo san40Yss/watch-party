@@ -1,5 +1,6 @@
 <script>
   import * as api from './api.js'
+  import { t, tServer } from './i18n.svelte.js'
 
   let { onClose } = $props()
   let current = $state('')
@@ -13,11 +14,11 @@
     e.preventDefault()
     error = ''
     if (next.length < 6) {
-      error = 'Новый пароль — минимум 6 символов'
+      error = t('err_pwd_short')
       return
     }
     if (next !== confirm) {
-      error = 'Пароли не совпадают'
+      error = t('err_pwd_mismatch')
       return
     }
     busy = true
@@ -26,7 +27,7 @@
       done = true
       setTimeout(onClose, 1200)
     } catch (err) {
-      error = err.message || 'Не удалось сменить пароль'
+      error = tServer(err.message) || t('err_pwd_change')
     } finally {
       busy = false
     }
@@ -37,20 +38,20 @@
 
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
   <form class="modal" onsubmit={submit}>
-    <h2>Сменить пароль</h2>
+    <h2>{t('change_password')}</h2>
     {#if done}
       <div class="ok">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 6" /></svg>
-        Пароль изменён
+        {t('password_changed')}
       </div>
     {:else}
-      <input class="input" type="password" placeholder="Текущий пароль" bind:value={current} autocomplete="current-password" />
-      <input class="input" type="password" placeholder="Новый пароль" bind:value={next} autocomplete="new-password" />
-      <input class="input" type="password" placeholder="Повтор нового пароля" bind:value={confirm} autocomplete="new-password" />
+      <input class="input" type="password" placeholder={t('current_password')} bind:value={current} autocomplete="current-password" />
+      <input class="input" type="password" placeholder={t('new_password')} bind:value={next} autocomplete="new-password" />
+      <input class="input" type="password" placeholder={t('repeat_password')} bind:value={confirm} autocomplete="new-password" />
       {#if error}<div class="err">{error}</div>{/if}
       <div class="actions">
-        <button type="button" class="btn-ghost" onclick={onClose}>Отмена</button>
-        <button class="btn" disabled={busy}>{busy ? 'Сохранение…' : 'Сохранить'}</button>
+        <button type="button" class="btn-ghost" onclick={onClose}>{t('cancel')}</button>
+        <button class="btn" disabled={busy}>{busy ? t('saving') : t('save')}</button>
       </div>
     {/if}
   </form>

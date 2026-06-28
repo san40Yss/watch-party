@@ -1,5 +1,6 @@
 <script>
   import * as tus from 'tus-js-client'
+  import { t } from './i18n.svelte.js'
 
   let { onDone } = $props()
   let dragging = $state(false)
@@ -64,8 +65,8 @@
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M12 16V4m0 0L7 9m5-5 5 5M5 18v1a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1" />
   </svg>
-  <span class="dz-title">Загрузить видео</span>
-  <span class="dz-sub">или перетащите файлы сюда</span>
+  <span class="dz-title">{t('upload_video')}</span>
+  <span class="dz-sub">{t('upload_drop')}</span>
 </div>
 
 {#if uploads.length}
@@ -75,7 +76,7 @@
         <div class="up-row">
           <span class="up-name">{u.name}</span>
           <span class="up-pct tabular" class:done={u.status === 'done'} class:err={u.status === 'error'}>
-            {u.status === 'done' ? 'готово' : u.status === 'error' ? 'ошибка' : `${Math.round(u.progress)}%`}
+            {u.status === 'done' ? t('up_done') : u.status === 'error' ? t('up_error') : `${Math.round(u.progress)}%`}
           </span>
         </div>
         <div class="up-track">

@@ -11,7 +11,7 @@
   let {
     src,
     title,
-    placeholder = 'Выберите видео',
+    placeholder = '', // App always passes a translated value; this is just a fallback
     // Fired on a genuine USER action (clicking play/pause, dragging the
     // scrubber): { type: 'play' | 'pause' | 'seek', time }. Step 5 (rooms)
     // broadcasts these to the room. Null = nobody's listening (local-only).
