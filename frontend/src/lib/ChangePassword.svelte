@@ -1,6 +1,6 @@
 <script>
   import * as api from './api.js'
-  import { t, tServer } from './i18n.svelte.js'
+  import { t, tCode } from './i18n.svelte.js'
 
   let { onClose } = $props()
   let current = $state('')
@@ -27,7 +27,7 @@
       done = true
       setTimeout(onClose, 1200)
     } catch (err) {
-      error = tServer(err.message) || t('err_pwd_change')
+      error = tCode(err.message) ?? t('err_pwd_change')
     } finally {
       busy = false
     }

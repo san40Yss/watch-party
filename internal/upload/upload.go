@@ -49,7 +49,9 @@ func New(pool *pgxpool.Pool, mediaDir string) (http.Handler, error) {
 
 func onComplete(pool *pgxpool.Pool, mediaDir, staging string, info tusd.FileInfo) {
 	name := filepath.Base(info.MetaData["filename"])
-	if name == "" || name == "." || name == "/" {
+	// filepath.Base never returns a path separator, but it does pass "." and
+	// ".." through — either would escape the library dir.
+	if name == "" || name == "." || name == ".." || name == "/" {
 		name = info.ID
 	}
 

@@ -256,7 +256,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if err := h.authsvc.ChangePassword(r.Context(), user.ID, body.Current, body.New); err != nil {
+	if err := h.authsvc.ChangePassword(r, user.ID, body.Current, body.New); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}

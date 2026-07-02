@@ -12,9 +12,11 @@ import (
 	"github.com/coder/websocket"
 )
 
-// Member is a connected participant, as exposed in presence updates.
+// Member is a connected participant, as exposed in presence updates. ConnID
+// distinguishes two connections of the same account (e.g. two open tabs).
 type Member struct {
 	UserID   int    `json:"-"`
+	ConnID   string `json:"connId"`
 	Username string `json:"username"`
 	IsHost   bool   `json:"isHost"`
 }

@@ -2,11 +2,26 @@ package db
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// IsUniqueViolation reports whether err is a Postgres unique-constraint error.
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// DeleteExpiredSessions purges sessions past their expiry; without this the
+// table grows forever (one row per login, 30-day TTL).
+func DeleteExpiredSessions(ctx context.Context, pool *pgxpool.Pool) (int64, error) {
+	tag, err := pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at < NOW()`)
+	return tag.RowsAffected(), err
+}
 
 type Video struct {
 	ID            int       `json:"id"`

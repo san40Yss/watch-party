@@ -53,6 +53,27 @@ func main() {
 		log.Printf("reset %d stuck processing video(s)", n)
 	}
 
+	// Expired sessions and stale rooms otherwise accumulate forever; purge on
+	// startup and then daily.
+	cleanup := func() {
+		if n, err := db.DeleteExpiredSessions(ctx, pool); err != nil {
+			log.Printf("purge sessions: %v", err)
+		} else if n > 0 {
+			log.Printf("purged %d expired session(s)", n)
+		}
+		if n, err := db.DeleteStaleRooms(ctx, pool, 48*time.Hour); err != nil {
+			log.Printf("purge rooms: %v", err)
+		} else if n > 0 {
+			log.Printf("purged %d stale room(s)", n)
+		}
+	}
+	cleanup()
+	go func() {
+		for range time.Tick(24 * time.Hour) {
+			cleanup()
+		}
+	}()
+
 	processedRoot := os.Getenv("PROCESSED_ROOT")
 	if processedRoot == "" {
 		processedRoot = "/processed"
@@ -80,13 +101,16 @@ func main() {
 	h := handler.New(pool, proc, authsvc, hub)
 
 	r := chi.NewRouter()
+	r.Use(middleware.RealIP) // nginx fronts us; trust its X-Real-IP for rate limiting
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(authsvc.Middleware) // attaches current user to every request
 
 	// Public: authentication endpoints. /me returns null when anonymous.
-	r.Post("/api/login", h.Login)
-	r.Post("/api/register", h.Register)
+	// Credential endpoints are rate-limited per IP against brute force.
+	authLimit := auth.RateLimit(10, time.Minute)
+	r.With(authLimit).Post("/api/login", h.Login)
+	r.With(authLimit).Post("/api/register", h.Register)
 	r.Post("/api/logout", h.Logout)
 	r.Get("/api/me", h.Me)
 

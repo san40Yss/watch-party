@@ -1,6 +1,6 @@
 <script>
   import * as api from './api.js'
-  import { t, tServer } from './i18n.svelte.js'
+  import { t, tCode } from './i18n.svelte.js'
   import LangToggle from './LangToggle.svelte'
 
   let { onLogin } = $props()
@@ -27,11 +27,8 @@
         : await api.login(username, password)
       onLogin(user)
     } catch (err) {
-      // Register surfaces the backend's message (translated via tServer);
-      // login deliberately returns a generic one.
-      error = isRegister
-        ? tServer(err.message) || t('err_register')
-        : t('err_credentials')
+      // Known backend codes are translated; anything else gets a generic text.
+      error = tCode(err.message) ?? t(isRegister ? 'err_register' : 'err_credentials')
     } finally {
       busy = false
     }
@@ -55,13 +52,22 @@
       <button type="button" class:active={isRegister} onclick={() => switchMode('register')}>{t('sign_up')}</button>
     </div>
 
-    <input class="input" placeholder={t('username')} bind:value={username} autocomplete="username" />
+    <input
+      class="input"
+      placeholder={t('username')}
+      bind:value={username}
+      autocomplete="username"
+      required
+      minlength={isRegister ? 3 : undefined}
+    />
     <input
       class="input"
       placeholder={t('password')}
       type="password"
       bind:value={password}
       autocomplete={isRegister ? 'new-password' : 'current-password'}
+      required
+      minlength={isRegister ? 6 : undefined}
     />
     {#if isRegister}
       <div class="hint">{t('register_hint')}</div>

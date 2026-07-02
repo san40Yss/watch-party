@@ -13,13 +13,22 @@ export const room = $state({
   connected: false,
   members: [],
   videoId: null, // which video the room is watching (drives App's selection)
+  // True when the browser blocked autoplay for a guest: playback can only
+  // start from a user gesture, so the UI shows a "tap to sync" overlay that
+  // calls resumeSync().
+  needsGesture: false,
 })
 
 let ws = null
 let controller = null
 let userId = null
-let lastState = null     // latest { position, paused } from the server
+let lastState = null     // latest { position, paused, receivedAt } from the server
 let needsRestore = false // host: apply the next state once (restore position on rejoin)
+
+// Reconnect-with-backoff bookkeeping. A dropped socket (phone locked, Wi-Fi
+// blip) must not silently end the party.
+let reconnectTimer = null
+let reconnectAttempts = 0
 
 // Which room we're in, persisted so a page refresh can rejoin automatically.
 const STORE_KEY = 'wp_room'
@@ -51,10 +60,29 @@ function maybeApply(s) {
 
 function applyState(s) {
   if (!controller) return
+  // The anchor was correct at receive time; while playing it keeps advancing,
+  // so extrapolate by the local time elapsed since then. (Wall-clock deltas
+  // against serverTime would add the server↔client clock skew instead.)
+  const target = s.paused ? s.position : s.position + (Date.now() - s.receivedAt) / 1000
   // Only correct when drift is real, to avoid jitter from sub-second nudges.
-  if (Math.abs(controller.getState().time - s.position) > 0.75) controller.seek(s.position)
-  if (s.paused) controller.pause()
-  else controller.play()
+  if (Math.abs(controller.getState().time - target) > 0.75) controller.seek(target)
+  if (s.paused) {
+    controller.pause()
+  } else {
+    // Browsers may reject play() without a user gesture (guest just opened the
+    // link). Surface that so the UI can offer a tap-to-sync button.
+    controller.play()?.then(
+      () => { room.needsGesture = false },
+      () => { room.needsGesture = true },
+    )
+  }
+}
+
+// Called from a click on the "tap to sync" overlay — inside a user gesture,
+// play() is allowed again.
+export function resumeSync() {
+  room.needsGesture = false
+  if (lastState) applyState(lastState)
 }
 
 // Player.onLocalAction (a genuine user action): host broadcasts it; a guest's
@@ -84,9 +112,9 @@ function onMessage(raw) {
   if (msg.type === 'presence') {
     room.members = msg.members
   } else if (msg.type === 'state') {
-    lastState = msg
+    lastState = { ...msg, receivedAt: Date.now() }
     if (msg.videoId != null) room.videoId = msg.videoId
-    maybeApply(msg)
+    maybeApply(lastState)
   }
 }
 
@@ -94,9 +122,44 @@ function openSocket(id) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   ws = new WebSocket(`${proto}://${location.host}/api/rooms/${id}/ws`)
   ws.onmessage = (e) => onMessage(e.data)
-  ws.onopen = () => { room.connected = true }
-  ws.onclose = () => { room.connected = false }
+  ws.onopen = () => {
+    room.connected = true
+    reconnectAttempts = 0
+  }
+  // Closed for any reason while we still consider ourselves in the room →
+  // reconnect. leave() clears room.id first, so a voluntary exit doesn't.
+  ws.onclose = () => {
+    room.connected = false
+    if (room.id) scheduleReconnect()
+  }
 }
+
+function scheduleReconnect() {
+  if (reconnectTimer) return
+  const delay = Math.min(1000 * 2 ** reconnectAttempts, 15000)
+  reconnectAttempts++
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null
+    if (!room.id) return
+    try {
+      await api.getRoom(room.id) // still exists? (also detects a purged room)
+    } catch {
+      leave()
+      return
+    }
+    openSocket(room.id)
+  }, delay)
+}
+
+// A backgrounded tab (locked phone) usually kills the socket; reconnect
+// immediately when it becomes visible again instead of waiting out the backoff.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !room.id || room.connected) return
+  clearTimeout(reconnectTimer)
+  reconnectTimer = null
+  reconnectAttempts = 0
+  scheduleReconnect()
+})
 
 export async function create(videoId) {
   const r = await api.createRoom(videoId)
@@ -128,16 +191,20 @@ export async function join(id) {
 }
 
 export function leave() {
+  room.id = null // before close(), so onclose doesn't schedule a reconnect
+  clearTimeout(reconnectTimer)
+  reconnectTimer = null
+  reconnectAttempts = 0
   if (ws) {
     ws.close()
     ws = null
   }
   localStorage.removeItem(STORE_KEY)
-  room.id = null
   room.isHost = false
   room.connected = false
   room.members = []
   room.videoId = null
+  room.needsGesture = false
   lastState = null
   needsRestore = false
 }

@@ -269,7 +269,7 @@ func subtitleLabel(s SubtitleRendition) string {
 		label = s.Language
 	}
 	if label == "" {
-		label = "Субтитры " + strconv.Itoa(s.TrackIndex+1)
+		label = "Subtitles " + strconv.Itoa(s.TrackIndex+1)
 	}
 	if s.Forced && !strings.Contains(strings.ToLower(label), "forced") {
 		label += " (forced)"
@@ -288,6 +288,6 @@ func audioLabel(a AudioPlan, idx int) string {
 	case a.Language != "":
 		return a.Language
 	default:
-		return "Дорожка " + strconv.Itoa(idx+1)
+		return "Audio " + strconv.Itoa(idx+1)
 	}
 }

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -29,6 +30,13 @@ func newRoomID() (string, error) {
 	return string(b), nil
 }
 
+// newConnID returns a short random id for one WebSocket connection.
+func newConnID() string {
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 // CreateRoom makes a new room hosted by the current user, optionally bound to a
 // video. Returns the room (including its shareable id).
 func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +46,8 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body) // body is optional
 
-	// Retry on the (astronomically unlikely) id collision.
+	// Retry on the (astronomically unlikely) id collision; any other DB error
+	// won't be fixed by a new code, so bail immediately.
 	var id string
 	var err error
 	for attempt := 0; attempt < 5; attempt++ {
@@ -46,7 +55,8 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		if err = db.CreateRoom(r.Context(), h.pool, id, user.ID, body.VideoID); err == nil {
+		err = db.CreateRoom(r.Context(), h.pool, id, user.ID, body.VideoID)
+		if err == nil || !db.IsUniqueViolation(err) {
 			break
 		}
 	}
@@ -96,7 +106,9 @@ func (h *Handler) RoomWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isHost := user.ID == rm.HostID
-	member := room.Member{UserID: user.ID, Username: user.Username, IsHost: isHost}
+	// ConnID makes each connection unique in presence — the same account in two
+	// tabs must not produce duplicate identities (the UI keys members by it).
+	member := room.Member{UserID: user.ID, Username: user.Username, IsHost: isHost, ConnID: newConnID()}
 
 	// Only the host drives playback; guests' messages are ignored.
 	var onCommand func(room.Command)
@@ -116,7 +128,10 @@ func (h *Handler) handleRoomCommand(roomID string, cmd room.Command) {
 	default:
 		return
 	}
-	ctx := context.Background()
+	// Detached from the WS request context on purpose (the anchor write must
+	// survive the socket), but bounded so a hung DB can't leak goroutines.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if err := db.UpdateRoomState(ctx, h.pool, roomID, cmd.Time, cmd.Paused); err != nil {
 		return
 	}

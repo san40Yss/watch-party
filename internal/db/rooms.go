@@ -52,3 +52,13 @@ func (r *Room) LivePosition() float64 {
 	}
 	return r.Position + time.Since(r.UpdatedAt).Seconds()
 }
+
+// DeleteStaleRooms removes rooms whose playback anchor hasn't moved for
+// olderThan — a party is a one-evening thing, but rows (and shareable codes)
+// would otherwise live forever.
+func DeleteStaleRooms(ctx context.Context, pool *pgxpool.Pool, olderThan time.Duration) (int64, error) {
+	tag, err := pool.Exec(ctx,
+		`DELETE FROM rooms WHERE updated_at < NOW() - make_interval(secs => $1)`,
+		olderThan.Seconds())
+	return tag.RowsAffected(), err
+}

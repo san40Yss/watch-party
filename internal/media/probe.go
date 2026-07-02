@@ -123,34 +123,6 @@ func (r *ProbeResult) IsHDR() bool {
 	return false
 }
 
-func (r *ProbeResult) Is10Bit() bool {
-	v := r.VideoStream()
-	if v == nil {
-		return false
-	}
-	switch v.PixFmt {
-	case "yuv420p10le", "yuv420p10be", "p010le", "p010be",
-		"yuv422p10le", "yuv444p10le":
-		return true
-	}
-	return false
-}
-
-// NeedsVideoTranscode reports whether the video codec requires a full
-// re-encode. H.264, HEVC, VP9, AV1 are direct-play candidates (remux only).
-func (r *ProbeResult) NeedsVideoTranscode() bool {
-	v := r.VideoStream()
-	if v == nil {
-		return false
-	}
-	switch v.CodecName {
-	case "h264", "hevc", "vp9", "av1":
-		return false
-	default:
-		return true
-	}
-}
-
 // AudioNeedsTranscode reports whether an audio codec is not natively
 // supported by browsers. AC-3, E-AC-3, DTS, TrueHD etc. all need AAC.
 func AudioNeedsTranscode(codec string) bool {
@@ -190,6 +162,13 @@ func (r *ProbeResult) IsBrowserReady() bool {
 	}
 	for _, a := range r.AudioStreams() {
 		if AudioNeedsTranscode(a.CodecName) {
+			return false
+		}
+	}
+	// Text subtitles are only extracted on the HLS path; direct play would
+	// silently lose them, so such sources go through packaging instead.
+	for _, s := range r.SubtitleStreams() {
+		if IsTextSubtitle(s.CodecName) {
 			return false
 		}
 	}

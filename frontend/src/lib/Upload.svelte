@@ -4,8 +4,9 @@
 
   let { onDone } = $props()
   let dragging = $state(false)
-  // Active uploads: { name, progress, status: 'uploading'|'done'|'error' }
+  // Active uploads: { id, name, progress, status: 'uploading'|'done'|'error' }
   let uploads = $state([])
+  let nextUploadId = 0 // list key — file names can repeat (e.g. a retry)
 
   function pick() {
     const input = document.createElement('input')
@@ -21,7 +22,7 @@
   }
 
   function startOne(file) {
-    const entry = $state({ name: file.name, progress: 0, status: 'uploading' })
+    const entry = $state({ id: ++nextUploadId, name: file.name, progress: 0, status: 'uploading' })
     uploads = [...uploads, entry]
 
     const upload = new tus.Upload(file, {
@@ -71,7 +72,7 @@
 
 {#if uploads.length}
   <div class="uploads">
-    {#each uploads as u (u.name)}
+    {#each uploads as u (u.id)}
       <div class="up">
         <div class="up-row">
           <span class="up-name">{u.name}</span>

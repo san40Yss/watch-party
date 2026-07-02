@@ -71,7 +71,9 @@
     const el = player
 
     const controller = {
-      play: () => { if (el.paused) el.play().catch(() => {}) },
+      // Returns the play() promise so callers can detect an autoplay block
+      // (a guest joining a playing room without a user gesture).
+      play: () => (el.paused ? el.play() : Promise.resolve()),
       pause: () => { if (!el.paused) el.pause().catch(() => {}) },
       seek: (t) => { el.currentTime = t },
       // Snapshot for syncing a late joiner to where the room already is.

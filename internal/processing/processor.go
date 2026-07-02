@@ -71,9 +71,13 @@ func (p *Processor) run(videoID, targetHeight int) error {
 	_ = db.SetStatus(ctx, p.pool, videoID, "processing", nil)
 	_ = db.SetProgress(ctx, p.pool, videoID, 0)
 
+	// fail must record the error even when ctx itself is what failed (timeout /
+	// cancellation) — a write through the dead ctx would fail too, leaving the
+	// video stuck in 'processing' until the next restart.
+	failCtx := context.WithoutCancel(ctx)
 	fail := func(err error) error {
 		msg := err.Error()
-		_ = db.SetStatus(ctx, p.pool, videoID, "error", &msg)
+		_ = db.SetStatus(failCtx, p.pool, videoID, "error", &msg)
 		return err
 	}
 

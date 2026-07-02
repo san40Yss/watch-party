@@ -21,8 +21,10 @@ export const getVideo = (id) => fetch(`/api/videos/${id}`).then(json)
 export const processVideo = (id, height) =>
   fetch(`/api/videos/${id}/process?height=${height}`, { method: 'POST' }).then(json)
 
-export const deleteVideo = (id) =>
-  fetch(`/api/videos/${id}`, { method: 'DELETE' })
+export const deleteVideo = async (id) => {
+  const res = await fetch(`/api/videos/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+}
 
 export const me = () => fetch('/api/me').then(json)
 

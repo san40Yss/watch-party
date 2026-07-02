@@ -90,7 +90,8 @@
       </button>
 
       <div class="members">
-        {#each room.members as m (m.username)}
+        <!-- Keyed by connection id: the same account in two tabs is two members. -->
+        {#each room.members as m (m.connId)}
           <div class="member">
             <span class="avatar" class:host={m.isHost}>{m.username.slice(0, 1).toUpperCase()}</span>
             <span class="mname">{m.username}</span>

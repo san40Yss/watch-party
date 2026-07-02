@@ -77,11 +77,16 @@ const dict = {
     cancel: 'Отмена',
     saving: 'Сохранение…',
     save: 'Сохранить',
-    // server-error mappings (keyed by the Go backend's Russian message)
+    // server-error codes
     err_username_short: 'Имя пользователя — минимум 3 символа',
     err_password_short: 'Пароль — минимум 6 символов',
     err_username_taken: 'Имя пользователя занято',
     err_current_wrong: 'Текущий пароль неверный',
+    err_too_many: 'Слишком много попыток — подождите минуту',
+    // misc UI
+    tap_to_sync: 'Нажмите для синхронизации',
+    err_process: 'Не удалось запустить обработку',
+    err_delete: 'Не удалось удалить видео',
   },
   en: {
     tagline: 'Watch your media library together',
@@ -153,16 +158,21 @@ const dict = {
     err_password_short: 'Password must be at least 6 characters',
     err_username_taken: 'Username is taken',
     err_current_wrong: 'Current password is wrong',
+    err_too_many: 'Too many attempts — wait a minute',
+    tap_to_sync: 'Tap to sync',
+    err_process: 'Could not start processing',
+    err_delete: 'Could not delete video',
   },
 }
 
-// Maps the Go backend's Russian error strings → translation keys.
+// Maps the Go backend's stable error codes → translation keys.
 const serverErrors = {
-  'имя пользователя — минимум 3 символа': 'err_username_short',
-  'пароль — минимум 6 символов': 'err_password_short',
-  'имя пользователя занято': 'err_username_taken',
-  'текущий пароль неверный': 'err_current_wrong',
-  'новый пароль — минимум 6 символов': 'err_pwd_short',
+  username_short: 'err_username_short',
+  password_short: 'err_password_short',
+  username_taken: 'err_username_taken',
+  current_wrong: 'err_current_wrong',
+  invalid_credentials: 'err_credentials',
+  too_many_attempts: 'err_too_many',
 }
 
 function initialLang() {
@@ -175,15 +185,16 @@ export const i18n = $state({ lang: initialLang() })
 document.documentElement.lang = i18n.lang
 
 export function t(key, params) {
-  let s = dict[i18n.lang][key] ?? dict.ru[key] ?? key
+  let s = dict[i18n.lang][key] ?? dict.en[key] ?? key
   if (params) for (const [k, v] of Object.entries(params)) s = s.replaceAll(`{${k}}`, v)
   return s
 }
 
-// Translate a backend error message when we recognize it; otherwise pass through.
-export function tServer(msg) {
+// Translate a backend error code when we recognize it; null for anything else
+// (callers then fall back to their own generic message).
+export function tCode(msg) {
   const key = serverErrors[msg]
-  return key ? t(key) : msg
+  return key ? t(key) : null
 }
 
 export function setLang(lang) {

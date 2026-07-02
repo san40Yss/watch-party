@@ -8,7 +8,7 @@
   import ChangePassword from './lib/ChangePassword.svelte'
   import Room from './lib/Room.svelte'
   import LangToggle from './lib/LangToggle.svelte'
-  import { room, setUser, attachController, localAction, join as joinRoom, storedRoomId } from './lib/room.svelte.js'
+  import { room, setUser, attachController, localAction, join as joinRoom, leave as leaveRoom, resumeSync, storedRoomId } from './lib/room.svelte.js'
   import { t } from './lib/i18n.svelte.js'
 
   let videos = $state([])
@@ -74,8 +74,21 @@
           : t('ph_press_process')
   )
 
+  // Transient toast for failed actions (auto-clears).
+  let uiError = $state('')
+  let uiErrorTimer = null
+  function showError(msg) {
+    uiError = msg
+    clearTimeout(uiErrorTimer)
+    uiErrorTimer = setTimeout(() => (uiError = ''), 4000)
+  }
+
   async function refresh() {
-    videos = await api.listVideos()
+    try {
+      videos = await api.listVideos()
+    } catch {
+      return // transient network/auth hiccup — the next poll or action retries
+    }
     updateEtas(videos)
     ensurePolling()
   }
@@ -92,20 +105,37 @@
 
   async function startProcessing() {
     if (!current) return
-    await api.processVideo(current.id, quality)
+    try {
+      await api.processVideo(current.id, quality)
+    } catch {
+      showError(t('err_process'))
+      return
+    }
     await refresh()
   }
 
   async function deleteCurrent() {
     if (!current) return
     if (!confirm(t('confirm_delete', { title: current.title }))) return
-    await api.deleteVideo(current.id)
+    try {
+      await api.deleteVideo(current.id)
+    } catch {
+      showError(t('err_delete'))
+      return
+    }
     currentId = null
     await refresh()
   }
 
   async function logout() {
     await api.logout()
+    // Stop everything tied to the session: the room socket would otherwise
+    // stay connected, and the poll would hammer 401s.
+    leaveRoom()
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
     user = null
   }
 
@@ -205,8 +235,21 @@
       onLocalAction={localAction}
       onReady={(c) => { controller = c; attachController(c) }}
     />
+    {#if room.needsGesture}
+      <!-- Autoplay was blocked for a guest; playback needs one user gesture. -->
+      <button class="sync-overlay" onclick={resumeSync}>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        {t('tap_to_sync')}
+      </button>
+    {/if}
   </main>
 </div>
+
+{#if uiError}
+  <div class="toast" role="alert">{uiError}</div>
+{/if}
 {/if}
 
 <style>
@@ -299,6 +342,42 @@
   .quality:focus { outline: none; border-color: var(--accent); }
   .danger { color: var(--error); }
   .danger:hover:not(:disabled) { background: var(--error-soft); color: var(--error); }
+
+  .sync-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    width: 100%;
+    background: rgba(10, 10, 12, 0.72);
+    border: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: var(--text-base);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: var(--sp-5);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--z-modal);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-2);
+    border: 1px solid var(--error);
+    border-radius: var(--r-md);
+    color: var(--error);
+    font-size: var(--text-sm);
+    box-shadow: var(--shadow-3);
+    animation: fade var(--dur) var(--ease);
+  }
+  @keyframes fade { from { opacity: 0; } }
 
   /* Mobile: stack the player on top (sticky) with the panel scrolling below. */
   @media (max-width: 720px) {
