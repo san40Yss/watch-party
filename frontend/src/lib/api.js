@@ -77,8 +77,14 @@ export const getRoom = (id) => fetch(`/api/rooms/${id}`).then(json)
 // the master playlist (Vidstack drives it via hls.js / native HLS); everything
 // else is the single-file MP4 stream. The URL keeps a recognizable extension so
 // Vidstack picks the right provider.
+//
+// A still-processing video becomes playable as soon as the backend publishes
+// its master (processed_path set while status is 'processing') — the EVENT
+// playlist keeps growing under the player while ffmpeg works.
 export function playbackUrl(v) {
-  if (!v || v.status !== 'ready') return ''
+  if (!v) return ''
+  const watchable = v.status === 'ready' || (v.status === 'processing' && v.processed_path)
+  if (!watchable) return ''
   return v.playback_type === 'hls'
     ? `/api/videos/${v.id}/hls/master.m3u8`
     : `/api/videos/${v.id}/stream`

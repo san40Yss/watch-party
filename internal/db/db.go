@@ -131,6 +131,24 @@ func SetProgress(ctx context.Context, pool *pgxpool.Pool, id int, percent float6
 	return err
 }
 
+// ClearProcessed drops the processed pointer while a (re)process rebuilds the
+// package on disk, so players never chase files that were just wiped.
+func ClearProcessed(ctx context.Context, pool *pgxpool.Pool, id int) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE videos SET processed_path = NULL WHERE id = $1`, id)
+	return err
+}
+
+// SetWatchable publishes the HLS master of a still-processing video: the
+// package is already playable while ffmpeg keeps appending segments, so the
+// UI can start playback before the status flips to ready.
+func SetWatchable(ctx context.Context, pool *pgxpool.Pool, id int, processedPath string) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE videos SET processed_path = $1, playback_type = 'hls' WHERE id = $2`,
+		processedPath, id)
+	return err
+}
+
 // SetProcessed records the result of a successful processing run and marks
 // the video ready in a single update.
 func SetProcessed(ctx context.Context, pool *pgxpool.Pool, id int,

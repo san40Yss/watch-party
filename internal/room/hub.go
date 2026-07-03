@@ -23,9 +23,10 @@ type Member struct {
 
 // Command is a host control message received over the socket.
 type Command struct {
-	Type   string  `json:"type"` // "play" | "pause" | "seek"
-	Time   float64 `json:"time"` // playback position (seconds)
-	Paused bool    `json:"paused"`
+	Type    string  `json:"type"` // "play" | "pause" | "seek" | "switch"
+	Time    float64 `json:"time"` // playback position (seconds)
+	Paused  bool    `json:"paused"`
+	VideoID int     `json:"videoId"` // "switch" only: the video the room moves to
 }
 
 type client struct {

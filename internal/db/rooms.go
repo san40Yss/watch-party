@@ -53,6 +53,15 @@ func (r *Room) LivePosition() float64 {
 	return r.Position + time.Since(r.UpdatedAt).Seconds()
 }
 
+// UpdateRoomVideo rebinds the room to another video and resets the playback
+// anchor — everyone starts the new film paused at the beginning.
+func UpdateRoomVideo(ctx context.Context, pool *pgxpool.Pool, id string, videoID int) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE rooms SET video_id = $1, position = 0, paused = true, updated_at = NOW()
+		 WHERE id = $2`, videoID, id)
+	return err
+}
+
 // DeleteStaleRooms removes rooms whose playback anchor hasn't moved for
 // olderThan — a party is a one-evening thing, but rows (and shareable codes)
 // would otherwise live forever.

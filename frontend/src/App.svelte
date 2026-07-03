@@ -8,7 +8,7 @@
   import ChangePassword from './lib/ChangePassword.svelte'
   import Room from './lib/Room.svelte'
   import LangToggle from './lib/LangToggle.svelte'
-  import { room, setUser, attachController, localAction, join as joinRoom, leave as leaveRoom, resumeSync, storedRoomId } from './lib/room.svelte.js'
+  import { room, setUser, attachController, localAction, join as joinRoom, leave as leaveRoom, resumeSync, switchVideo, storedRoomId } from './lib/room.svelte.js'
   import { t } from './lib/i18n.svelte.js'
 
   let videos = $state([])
@@ -127,6 +127,14 @@
     await refresh()
   }
 
+  // Selecting a film: local pick — and if we're hosting a party, the whole
+  // room follows (guests' selections stay local-only; the follow-effect above
+  // snaps them back to the room's video).
+  function selectVideo(id) {
+    if (room.id && room.isHost) switchVideo(id)
+    currentId = id
+  }
+
   async function logout() {
     await api.logout()
     // Stop everything tied to the session: the room socket would otherwise
@@ -207,7 +215,7 @@
     {#if user.is_admin}
       <Upload onDone={refresh} />
     {/if}
-    <VideoList {videos} {currentId} {etas} onSelect={(id) => (currentId = id)} />
+    <VideoList {videos} {currentId} {etas} onSelect={selectVideo} />
   </aside>
 
   <main class="player-area">

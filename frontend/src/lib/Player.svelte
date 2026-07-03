@@ -35,7 +35,10 @@
       const p = e.detail
       if (p?.type === 'hls') {
         p.library = HLS
-        p.config = { ...p.config, renderTextTracksNatively: false }
+        // startPosition 0: a still-processing video plays as a growing EVENT
+        // playlist, and hls.js would otherwise start at the live edge (the
+        // encode frontier) instead of the beginning of the film.
+        p.config = { ...p.config, renderTextTracksNatively: false, startPosition: 0 }
       }
     }
     // When the film changes, drop the previous source's subtitle tracks so the

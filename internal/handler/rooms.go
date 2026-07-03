@@ -121,26 +121,38 @@ func (h *Handler) RoomWS(w http.ResponseWriter, r *http.Request) {
 	h.hub.Serve(r.Context(), conn, id, member, stateMsg(rm), onCommand)
 }
 
-// handleRoomCommand persists the host's new playback anchor and broadcasts it.
+// handleRoomCommand persists the host's command (playback anchor or a film
+// switch) and broadcasts the resulting state.
 func (h *Handler) handleRoomCommand(roomID string, cmd room.Command) {
+	// Detached from the WS request context on purpose (the write must survive
+	// the socket), but bounded so a hung DB can't leak goroutines.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	state := map[string]any{"type": "state", "serverTime": time.Now().UnixMilli()}
 	switch cmd.Type {
 	case "play", "pause", "seek":
+		if err := db.UpdateRoomState(ctx, h.pool, roomID, cmd.Time, cmd.Paused); err != nil {
+			return
+		}
+		state["position"] = cmd.Time
+		state["paused"] = cmd.Paused
+	case "switch":
+		// Host picked another film: rebind the room, everyone starts it paused
+		// at the beginning. (An invalid id fails the FK and is dropped.)
+		if cmd.VideoID <= 0 {
+			return
+		}
+		if err := db.UpdateRoomVideo(ctx, h.pool, roomID, cmd.VideoID); err != nil {
+			return
+		}
+		state["position"] = 0.0
+		state["paused"] = true
+		state["videoId"] = cmd.VideoID
 	default:
 		return
 	}
-	// Detached from the WS request context on purpose (the anchor write must
-	// survive the socket), but bounded so a hung DB can't leak goroutines.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := db.UpdateRoomState(ctx, h.pool, roomID, cmd.Time, cmd.Paused); err != nil {
-		return
-	}
-	msg, _ := json.Marshal(map[string]any{
-		"type":       "state",
-		"position":   cmd.Time,
-		"paused":     cmd.Paused,
-		"serverTime": time.Now().UnixMilli(),
-	})
+	msg, _ := json.Marshal(state)
 	h.hub.Broadcast(roomID, msg)
 }
 

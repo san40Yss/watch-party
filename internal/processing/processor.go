@@ -70,6 +70,9 @@ func (p *Processor) run(videoID, targetHeight int) error {
 
 	_ = db.SetStatus(ctx, p.pool, videoID, "processing", nil)
 	_ = db.SetProgress(ctx, p.pool, videoID, 0)
+	// PackageHLS wipes the output dir; the stale pointer must go with it, or a
+	// reprocess would point players at files that no longer exist.
+	_ = db.ClearProcessed(ctx, p.pool, videoID)
 
 	// fail must record the error even when ctx itself is what failed (timeout /
 	// cancellation) — a write through the dead ctx would fail too, leaving the
@@ -124,7 +127,26 @@ func (p *Processor) run(videoID, targetHeight int) error {
 		}
 	}
 
-	subs, err := media.PackageHLS(ctx, video.FilePath, outDir, plan, targetHeight, duration, onProgress)
+	// Fires once the package is minimally playable (first segment + finalized
+	// master): publish the tracks and the master pointer so playback can start
+	// while ffmpeg keeps appending segments.
+	onWatchable := func(subs []media.SubtitleRendition) {
+		if err := p.saveAudioTracks(ctx, videoID, plan); err != nil {
+			log.Printf("video %d: watchable tracks: %v", videoID, err)
+			return
+		}
+		if err := p.saveSubtitleTracks(ctx, videoID, subs); err != nil {
+			log.Printf("video %d: watchable subtitles: %v", videoID, err)
+			return
+		}
+		if err := db.SetWatchable(ctx, p.pool, videoID, masterPath); err != nil {
+			log.Printf("video %d: set watchable: %v", videoID, err)
+			return
+		}
+		log.Printf("video %d: watchable while processing", videoID)
+	}
+
+	subs, err := media.PackageHLS(ctx, video.FilePath, outDir, plan, targetHeight, duration, onProgress, onWatchable)
 	if err != nil {
 		return fail(fmt.Errorf("package hls: %w", err))
 	}
@@ -136,8 +158,11 @@ func (p *Processor) run(videoID, targetHeight int) error {
 		return fail(fmt.Errorf("save subtitles: %w", err))
 	}
 
+	// A transcoded HDR source was tonemapped to SDR, so what viewers receive
+	// is no longer HDR; only copied H.264 keeps the source's dynamic range.
+	deliveredHDR := plan.HDR && plan.VideoCodec == "h264"
 	if err := db.SetProcessed(ctx, p.pool, videoID, masterPath, "hls",
-		plan.VideoCodec, plan.SourceWidth, plan.SourceHeight, plan.HDR, duration); err != nil {
+		plan.VideoCodec, plan.SourceWidth, plan.SourceHeight, deliveredHDR, duration); err != nil {
 		return fail(fmt.Errorf("mark ready: %w", err))
 	}
 

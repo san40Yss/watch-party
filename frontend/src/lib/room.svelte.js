@@ -85,6 +85,16 @@ export function resumeSync() {
   if (lastState) applyState(lastState)
 }
 
+// Host picked another film from the library: rebind the room. The server
+// resets the anchor (paused at 0) and broadcasts it to everyone. room.videoId
+// is set immediately so App's follow-effect doesn't revert the host's click
+// while the echo is in flight.
+export function switchVideo(videoId) {
+  if (!room.isHost || videoId == null) return
+  room.videoId = videoId
+  sendCmd({ type: 'switch', videoId })
+}
+
 // Player.onLocalAction (a genuine user action): host broadcasts it; a guest's
 // action is bounced back to the room's state (they can't control playback).
 export function localAction(action) {

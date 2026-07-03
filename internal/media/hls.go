@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // SubtitleRendition is a WebVTT subtitle track produced during HLS packaging.
@@ -33,7 +34,13 @@ type SubtitleRendition struct {
 // rendition and each text subtitle a WebVTT rendition, so every viewer picks
 // their own audio + subtitles client-side. Returns the subtitle renditions for
 // persistence. Image subtitles (PGS/VobSub) are skipped — they'd need OCR.
-func PackageHLS(ctx context.Context, src, outDir string, plan *Plan, targetHeight int, durationSec float64, onProgress func(percent float64)) ([]SubtitleRendition, error) {
+//
+// Playback can start while packaging is still running: as soon as the first
+// video segment is on disk, subtitles are extracted (a demux-only pass running
+// alongside the encode), the master playlist is finalized and onWatchable
+// fires. The stream playlists are EVENT-typed, so players keep polling for new
+// segments and flip to normal VOD at the final ENDLIST.
+func PackageHLS(ctx context.Context, src, outDir string, plan *Plan, targetHeight int, durationSec float64, onProgress func(percent float64), onWatchable func([]SubtitleRendition)) ([]SubtitleRendition, error) {
 	// Start clean so a re-process at different settings (fewer tracks, different
 	// segment naming) doesn't leave orphaned files behind.
 	_ = os.RemoveAll(outDir)
@@ -41,24 +48,88 @@ func PackageHLS(ctx context.Context, src, outDir string, plan *Plan, targetHeigh
 		return nil, fmt.Errorf("mkdir: %w", err)
 	}
 
-	if err := packageAV(ctx, src, outDir, plan, targetHeight, durationSec, onProgress); err != nil {
-		return nil, err
+	// If finalization fails while the encode is still running, returning must
+	// also kill the encode — otherwise ffmpeg would keep writing for hours
+	// after the job is already reported as failed.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// The AV pass runs in the background so the package can be finalized
+	// (subtitles + master rewrite) while it is still encoding.
+	encDone := make(chan struct{})
+	var encErr error
+	go func() {
+		defer close(encDone)
+		encErr = packageAV(ctx, src, outDir, plan, targetHeight, durationSec, onProgress)
+	}()
+
+	// finalize computes the subtitle timestamp offset from the first segment
+	// (MPEG-TS muxing adds a ~1.48s delay; WebVTT cues are extracted from 0 and
+	// must be shifted onto that timeline), extracts the subtitles and rewrites
+	// the master playlist with friendly names + subtitle renditions.
+	var subs []SubtitleRendition
+	finalize := func() error {
+		tsOffset := videoStartPTS(ctx, outDir)
+		var err error
+		subs, err = extractSubtitles(ctx, src, outDir, plan, durationSec, tsOffset)
+		if err != nil {
+			return fmt.Errorf("subtitles: %w", err)
+		}
+		if err := rewriteMaster(filepath.Join(outDir, "master.m3u8"), plan.AudioTracks, subs); err != nil {
+			return fmt.Errorf("master: %w", err)
+		}
+		return nil
 	}
 
-	// MPEG-TS segments don't start at PTS 0 (ffmpeg adds a ~1.4s mux delay), so
-	// WebVTT cues — which are extracted starting at 0 — must be offset to that
-	// timeline via X-TIMESTAMP-MAP, or subtitles show up early.
-	tsOffset := videoStartPTS(ctx, outDir)
-
-	subs, err := extractSubtitles(ctx, src, outDir, plan, durationSec, tsOffset)
-	if err != nil {
-		return nil, fmt.Errorf("subtitles: %w", err)
+	finalized := false
+	if waitWatchable(ctx, outDir, encDone) {
+		if err := finalize(); err != nil {
+			return nil, err
+		}
+		finalized = true
+		if onWatchable != nil {
+			onWatchable(subs)
+		}
 	}
 
-	if err := rewriteMaster(filepath.Join(outDir, "master.m3u8"), plan.AudioTracks, subs); err != nil {
-		return nil, fmt.Errorf("master: %w", err)
+	<-encDone
+	if encErr != nil {
+		return nil, encErr
+	}
+	// Sources that finish faster than the watchable poll (short files, copies)
+	// take the classic path: finalize after the encode.
+	if !finalized {
+		if err := finalize(); err != nil {
+			return nil, err
+		}
 	}
 	return subs, nil
+}
+
+// waitWatchable polls until the package is minimally playable — the master
+// playlist exists and the video playlist lists its first completed segment
+// (ffmpeg rewrites the playlist only after a segment is fully written).
+// Returns false when the encode ends first (or the context is canceled).
+func waitWatchable(ctx context.Context, outDir string, encDone <-chan struct{}) bool {
+	master := filepath.Join(outDir, "master.m3u8")
+	videoPl := filepath.Join(outDir, "stream_video", "playlist.m3u8")
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-encDone:
+			return false
+		case <-tick.C:
+			if _, err := os.Stat(master); err != nil {
+				continue
+			}
+			if pl, err := os.ReadFile(videoPl); err == nil && strings.Contains(string(pl), "seg_000.ts") {
+				return true
+			}
+		}
+	}
 }
 
 // packageAV runs the ffmpeg pass that produces the video + audio renditions.
@@ -80,9 +151,17 @@ func packageAV(ctx context.Context, src, outDir string, plan *Plan, targetHeight
 	if plan.VideoCodec == "h264" {
 		args = append(args, "-c:v", "copy")
 	} else {
+		vf := fmt.Sprintf("scale=-2:min(ih\\,%d)", targetHeight)
+		if plan.HDR {
+			// HDR (PQ/HLG) → SDR: a naive 8-bit conversion washes the colors
+			// out. Linearize, tonemap (hable) and convert to BT.709. The float
+			// zscale pipeline is the accurate path; slower, but re-encodes are
+			// rare background jobs and quality wins here.
+			vf += ",zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+				"tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+		}
 		args = append(args, "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-			"-pix_fmt", "yuv420p",
-			"-vf", fmt.Sprintf("scale=-2:min(ih\\,%d)", targetHeight))
+			"-vf", vf+",format=yuv420p")
 	}
 	// Downmix every track to stereo AAC. Multichannel (5.1) AAC fails to parse
 	// in browser MSE / hls.js ("stream parsing failed" → bufferAppendError);
@@ -104,12 +183,19 @@ func packageAV(ctx context.Context, src, outDir string, plan *Plan, targetHeight
 	// MPEG-TS segments (not fMP4): the traditional, most-compatible HLS format
 	// for H.264 in hls.js. Since the video rendition is always H.264, TS is the
 	// safe choice (fMP4 was only needed for HEVC, which we no longer keep).
+	//
+	// EVENT playlists (not VOD) are what makes watch-while-processing work:
+	// players poll for appended segments during the encode, then treat the
+	// final ENDLIST as VOD. Deliberately NO temp_file flag: with it, ffmpeg
+	// lists a segment in the playlist before renaming it from .tmp, and players
+	// chasing the live edge hit 404s; without it the playlist is only updated
+	// after the segment file is complete (players never request unlisted names).
 	args = append(args,
 		"-var_stream_map", sm.String(),
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
 		"-hls_segment_type", "mpegts",
-		"-hls_playlist_type", "vod",
+		"-hls_playlist_type", "event",
 		"-hls_time", "6",
 		"-hls_flags", "independent_segments",
 		"-hls_segment_filename", filepath.Join(outDir, "stream_%v", "seg_%03d.ts"),
