@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,16 +28,18 @@ type Handler struct {
 	proc          *processing.Processor
 	authsvc       *auth.Service
 	hub           *room.Hub
+	streamSecret  []byte // HMAC key for signed (cookie-free) stream links
 	mediaRoot     string // container path to source media, e.g. /media
 	processedRoot string // container path to processed output, e.g. /processed
 }
 
-func New(pool *pgxpool.Pool, proc *processing.Processor, authsvc *auth.Service, hub *room.Hub) *Handler {
+func New(pool *pgxpool.Pool, proc *processing.Processor, authsvc *auth.Service, hub *room.Hub, streamSecret []byte) *Handler {
 	return &Handler{
 		pool:          pool,
 		proc:          proc,
 		authsvc:       authsvc,
 		hub:           hub,
+		streamSecret:  streamSecret,
 		mediaRoot:     envOr("MEDIA_ROOT", "/media"),
 		processedRoot: envOr("PROCESSED_ROOT", "/processed"),
 	}
@@ -138,12 +145,61 @@ func (h *Handler) DeleteVideo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// streamSig computes the signature for a stream link: HMAC over the video id
+// and the expiry, so a leaked link grants exactly one video until it expires.
+func (h *Handler) streamSig(videoID int, exp int64) string {
+	mac := hmac.New(sha256.New, h.streamSecret)
+	fmt.Fprintf(mac, "%d:%d", videoID, exp)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// validStreamToken reports whether the request carries a valid, unexpired
+// signed token for this video (exp + sig query params).
+func (h *Handler) validStreamToken(r *http.Request, videoID int) bool {
+	expStr := r.URL.Query().Get("exp")
+	sig := r.URL.Query().Get("sig")
+	if expStr == "" || sig == "" {
+		return false
+	}
+	exp, err := strconv.ParseInt(expStr, 10, 64)
+	if err != nil || time.Now().Unix() > exp {
+		return false
+	}
+	return hmac.Equal([]byte(h.streamSig(videoID, exp)), []byte(sig))
+}
+
+// StreamLink issues a signed, cookie-free stream URL for external players
+// (VR headsets, VLC): they can't log in, so the link itself is the credential.
+func (h *Handler) StreamLink(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if _, err := db.GetVideo(r.Context(), h.pool, id); err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	exp := time.Now().Add(48 * time.Hour).Unix()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"url":        fmt.Sprintf("/api/videos/%d/stream?exp=%d&sig=%s", id, exp, h.streamSig(id, exp)),
+		"expires_at": exp,
+	})
+}
+
 // StreamVideo serves the processed MP4 when ready, otherwise falls back to the
 // raw source. nginx does the actual byte serving via X-Accel-Redirect.
+//
+// Registered outside RequireAuth: it accepts either a session cookie or a
+// signed token (external players can't log in).
 func (h *Handler) StreamVideo(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if auth.UserFrom(r.Context()) == nil && !h.validStreamToken(r, id) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 

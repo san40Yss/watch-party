@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 	"os"
@@ -97,8 +99,20 @@ func main() {
 		log.Fatalf("ensure default user: %v", err)
 	}
 
+	// Secret for signing direct stream links (VR headsets and other external
+	// players can't send the session cookie). Generated once and persisted so
+	// issued links survive restarts.
+	candidate := make([]byte, 32)
+	if _, err := rand.Read(candidate); err != nil {
+		log.Fatalf("stream secret: %v", err)
+	}
+	streamSecret, err := db.GetOrCreateSetting(ctx, pool, "stream_secret", hex.EncodeToString(candidate))
+	if err != nil {
+		log.Fatalf("stream secret: %v", err)
+	}
+
 	hub := room.NewHub()
-	h := handler.New(pool, proc, authsvc, hub)
+	h := handler.New(pool, proc, authsvc, hub, []byte(streamSecret))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP) // nginx fronts us; trust its X-Real-IP for rate limiting
@@ -113,6 +127,12 @@ func main() {
 	r.With(authLimit).Post("/api/register", h.Register)
 	r.Post("/api/logout", h.Logout)
 	r.Get("/api/me", h.Me)
+
+	// Streaming sits outside RequireAuth: it accepts a session cookie OR a
+	// signed token (VR headsets and other external players can't log in).
+	// HEAD too: some players probe with HEAD before streaming.
+	r.Get("/api/videos/{id}/stream", h.StreamVideo)
+	r.Head("/api/videos/{id}/stream", h.StreamVideo)
 
 	// Protected: everything else requires a logged-in user. Same-origin player
 	// requests (HLS playlists/segments, stream) carry the session cookie, so
@@ -130,9 +150,8 @@ func main() {
 		// Viewing is open to any authenticated user.
 		r.Get("/api/videos", h.ListVideos)
 		r.Get("/api/videos/{id}", h.GetVideo)
-		// HEAD too: some players probe with HEAD before streaming.
-		r.Get("/api/videos/{id}/stream", h.StreamVideo)
-		r.Head("/api/videos/{id}/stream", h.StreamVideo)
+		// Mint a signed stream link for external players (48h validity).
+		r.Post("/api/videos/{id}/streamlink", h.StreamLink)
 		// HLS package (master playlist, per-stream playlists, segments).
 		r.Get("/api/videos/{id}/hls/*", h.HLSFile)
 
