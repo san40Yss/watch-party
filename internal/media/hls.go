@@ -122,7 +122,10 @@ func waitWatchable(ctx context.Context, outDir string, encDone <-chan struct{}) 
 		case <-encDone:
 			return false
 		case <-tick.C:
-			if _, err := os.Stat(master); err != nil {
+			// The master must be fully written (it lists every variant) before
+			// finalize rewrites it, or the rewrite would bake in a torso.
+			if m, err := os.ReadFile(master); err != nil ||
+				!strings.Contains(string(m), "#EXT-X-STREAM-INF") {
 				continue
 			}
 			if pl, err := os.ReadFile(videoPl); err == nil && strings.Contains(string(pl), "seg_000.ts") {

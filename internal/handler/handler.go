@@ -58,8 +58,18 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// ListVideos returns the shared film library, or — with ?vr=1, admin-only —
+// the personal VR library (never both: the lists are fully separate).
 func (h *Handler) ListVideos(w http.ResponseWriter, r *http.Request) {
-	videos, err := db.ListVideos(r.Context(), h.pool)
+	vr := r.URL.Query().Get("vr") == "1"
+	if vr {
+		u := auth.UserFrom(r.Context())
+		if u == nil || !u.IsAdmin {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+	videos, err := db.ListVideos(r.Context(), h.pool, vr)
 	if err != nil {
 		log.Printf("list videos: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -81,6 +91,13 @@ func (h *Handler) GetVideo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+	// VR items exist only for the admin; 404 (not 403) so ids don't leak.
+	if video.IsVR {
+		if u := auth.UserFrom(r.Context()); u == nil || !u.IsAdmin {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 	}
 	tracks, _ := db.ListAudioTracks(r.Context(), h.pool, id)
 	if tracks == nil {
@@ -176,9 +193,17 @@ func (h *Handler) StreamLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if _, err := db.GetVideo(r.Context(), h.pool, id); err != nil {
+	video, err := db.GetVideo(r.Context(), h.pool, id)
+	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+	// Only the admin can mint links into the personal VR library.
+	if video.IsVR {
+		if u := auth.UserFrom(r.Context()); u == nil || !u.IsAdmin {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 	}
 	exp := time.Now().Add(48 * time.Hour).Unix()
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -207,6 +232,15 @@ func (h *Handler) StreamVideo(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	}
+	// VR items stream only with a signed link or for the admin — a guest's
+	// session cookie alone must not reach the personal library.
+	if video.IsVR {
+		u := auth.UserFrom(r.Context())
+		if (u == nil || !u.IsAdmin) && !h.validStreamToken(r, id) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	target := video.FilePath

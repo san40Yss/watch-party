@@ -55,8 +55,20 @@ func onComplete(pool *pgxpool.Pool, mediaDir, staging string, info tusd.FileInfo
 		name = info.ID
 	}
 
+	// VR uploads (marked by the client) go to their own subdir and never show
+	// up in the shared film library.
+	isVR := info.MetaData["vr"] == "1"
+	dstDir := mediaDir
+	if isVR {
+		dstDir = filepath.Join(mediaDir, "vr")
+		if err := os.MkdirAll(dstDir, 0o755); err != nil {
+			log.Printf("upload %s: vr dir: %v", info.ID, err)
+			return
+		}
+	}
+
 	srcPath := filepath.Join(staging, info.ID)
-	dstPath := uniquePath(filepath.Join(mediaDir, name))
+	dstPath := uniquePath(filepath.Join(dstDir, name))
 	if err := os.Rename(srcPath, dstPath); err != nil {
 		log.Printf("upload %s: move to library failed: %v", info.ID, err)
 		return
@@ -65,8 +77,8 @@ func onComplete(pool *pgxpool.Pool, mediaDir, staging string, info tusd.FileInfo
 
 	title := strings.TrimSuffix(filepath.Base(dstPath), filepath.Ext(dstPath))
 	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO videos (title, file_path) VALUES ($1, $2)`,
-		title, dstPath); err != nil {
+		`INSERT INTO videos (title, file_path, is_vr) VALUES ($1, $2, $3)`,
+		title, dstPath, isVR); err != nil {
 		log.Printf("upload %s: register failed: %v", info.ID, err)
 		return
 	}

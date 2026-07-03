@@ -29,3 +29,4 @@ media-info-examples
 *_webrip.txt
 *_bdinfo.txt
 *_UHD.txt
+frontend/public/tus.min.js

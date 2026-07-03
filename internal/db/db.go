@@ -37,6 +37,7 @@ type Video struct {
 	Height        *int      `json:"height"`
 	HDR           bool      `json:"hdr"`
 	Duration      *float64  `json:"duration"`
+	IsVR          bool      `json:"is_vr"` // personal VR library, hidden from the shared list
 	CreatedAt     time.Time `json:"created_at"`
 }
 
@@ -63,22 +64,24 @@ type SubtitleTrack struct {
 }
 
 const videoCols = `id, title, file_path, processed_path, playback_type, status,
-	progress, error, video_codec, width, height, hdr, duration, created_at`
+	progress, error, video_codec, width, height, hdr, duration, is_vr, created_at`
 
 func scanVideo(row pgx.Row) (*Video, error) {
 	var v Video
 	err := row.Scan(&v.ID, &v.Title, &v.FilePath, &v.ProcessedPath, &v.PlaybackType,
 		&v.Status, &v.Progress, &v.Error, &v.VideoCodec, &v.Width, &v.Height, &v.HDR,
-		&v.Duration, &v.CreatedAt)
+		&v.Duration, &v.IsVR, &v.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &v, nil
 }
 
-func ListVideos(ctx context.Context, pool *pgxpool.Pool) ([]Video, error) {
+// ListVideos returns one of the two libraries: the shared film list or the
+// personal VR one (they never mix).
+func ListVideos(ctx context.Context, pool *pgxpool.Pool, vr bool) ([]Video, error) {
 	rows, err := pool.Query(ctx,
-		`SELECT `+videoCols+` FROM videos ORDER BY id`)
+		`SELECT `+videoCols+` FROM videos WHERE is_vr = $1 ORDER BY id`, vr)
 	if err != nil {
 		return nil, err
 	}
