@@ -25,7 +25,7 @@ const dict = {
     processing_pct: 'Обработка {pct}%',
     quality_aria: 'Качество перекодирования',
     delete_video: 'Удалить из библиотеки',
-    confirm_delete: 'Удалить «{title}» из библиотеки? Исходный файл останется.',
+    confirm_delete: 'Удалить «{title}» из библиотеки? Файл будет удалён с диска безвозвратно.',
     // player placeholders
     ph_select: 'Выберите видео',
     ph_processing: 'Обработка {pct}%',
@@ -107,7 +107,7 @@ const dict = {
     processing_pct: 'Processing {pct}%',
     quality_aria: 'Transcode quality',
     delete_video: 'Remove from library',
-    confirm_delete: 'Remove “{title}” from the library? The source file stays.',
+    confirm_delete: 'Delete “{title}” from the library? The source file will be permanently removed from disk.',
     ph_select: 'Select a video',
     ph_processing: 'Processing {pct}%',
     ph_eta: ' · ~{min} min left',

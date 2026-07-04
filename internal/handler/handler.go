@@ -139,16 +139,17 @@ func (h *Handler) ProcessVideo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// DeleteVideo removes a video from the library: its DB row (audio/subtitle
-// tracks cascade) and its processed output directory. The original source file
-// in the media library is left untouched.
+// DeleteVideo removes a video from the library entirely: its DB row
+// (audio/subtitle tracks cascade), its processed output directory, and the
+// original source file. Deletion is permanent.
 func (h *Handler) DeleteVideo(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	if _, err := db.GetVideo(r.Context(), h.pool, id); err != nil {
+	video, err := db.GetVideo(r.Context(), h.pool, id)
+	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -157,9 +158,28 @@ func (h *Handler) DeleteVideo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	// Remove only the per-video processed dir; never the source media.
+	// Remove the per-video processed dir…
 	_ = os.RemoveAll(filepath.Join(h.processedRoot, strconv.Itoa(id)))
+	// …and the source file itself, but only if it truly lives inside the media
+	// library — a guard so a malformed path can never delete anything outside.
+	if h.underMediaRoot(video.FilePath) {
+		if err := os.Remove(video.FilePath); err != nil && !os.IsNotExist(err) {
+			log.Printf("delete source %s: %v", video.FilePath, err)
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// underMediaRoot reports whether path is a file strictly inside the media
+// library directory (not the root itself, not an escaping path). Used to bound
+// destructive source-file deletion.
+func (h *Handler) underMediaRoot(path string) bool {
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	root := filepath.Clean(h.mediaRoot)
+	return abs != root && strings.HasPrefix(abs, root+string(os.PathSeparator))
 }
 
 // streamSig computes the signature for a stream link: HMAC over the video id
