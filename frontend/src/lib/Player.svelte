@@ -7,6 +7,7 @@
   import 'vidstack/player/styles/default/theme.css'
   import 'vidstack/player/styles/default/layouts/video.css'
   import HLS from 'hls.js'
+  import { caption, captionVars } from './captionStyle.svelte.js'
 
   let {
     src,
@@ -104,7 +105,9 @@
 </script>
 
 {#if src}
-  <media-player bind:this={player} {title} {src}>
+  <!-- captionVars feeds Vidstack's --media-user-* caption styling plus our
+       --cap-* position vars — all per-viewer, from the caption store. -->
+  <media-player bind:this={player} {title} {src} style={captionVars(caption)}>
     <media-provider></media-provider>
     <media-video-layout></media-video-layout>
   </media-player>
@@ -140,4 +143,31 @@
   }
   .ph-logo { width: 54px; height: 54px; opacity: 0.3; }
   .ph-text { font-size: var(--text-sm); max-width: 32ch; line-height: 1.5; }
+
+  /* Per-viewer caption styling. We apply our own --wp-cc-* / --cap-* vars to the
+     cues directly (Vidstack's built-in caption-settings owns the --media-user-*
+     vars and strips them at init, so we can't ride those). Vidstack styles cues
+     with :where() (zero specificity); !important also beats its per-cue inline
+     styles. Size is a multiplier on the standard 4.5%-of-height cue size, using
+     Vidstack's own --player-height (kept current across resize/fullscreen). */
+  :global(.vds-captions) {
+    font-size: calc(var(--player-height, 400px) / 100 * 4.5 * var(--wp-cc-size, 1)) !important;
+    font-family: var(--wp-cc-font, sans-serif) !important;
+  }
+  :global(.vds-captions [data-part="cue-display"]) {
+    top: var(--cap-y, 90%) !important;
+    left: var(--cap-x, 50%) !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    text-align: center !important;
+    width: max-content !important;
+    max-width: 84% !important;
+  }
+  :global(.vds-captions [data-part="cue"]) {
+    color: var(--wp-cc-color, #fff) !important;
+    background-color: var(--wp-cc-bg, rgba(0, 0, 0, 0.75)) !important;
+    text-shadow: var(--wp-cc-shadow, 1px 1px 2px rgba(0, 0, 0, 0.95)) !important;
+    backdrop-filter: none !important;
+  }
 </style>

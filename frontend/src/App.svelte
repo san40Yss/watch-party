@@ -8,6 +8,7 @@
   import ChangePassword from './lib/ChangePassword.svelte'
   import Room from './lib/Room.svelte'
   import LangToggle from './lib/LangToggle.svelte'
+  import Captions from './lib/Captions.svelte'
   import { room, setUser, attachController, localAction, join as joinRoom, leave as leaveRoom, resumeSync, switchVideo, storedRoomId } from './lib/room.svelte.js'
   import { t } from './lib/i18n.svelte.js'
 
@@ -243,6 +244,10 @@
       onLocalAction={localAction}
       onReady={(c) => { controller = c; attachController(c) }}
     />
+    {#if current?.status === 'ready' && current.playback_type === 'hls'}
+      <!-- Per-viewer subtitle customization (only HLS videos carry subtitles). -->
+      <Captions />
+    {/if}
     {#if room.needsGesture}
       <!-- Autoplay was blocked for a guest; playback needs one user gesture. -->
       <button class="sync-overlay" onclick={resumeSync}>
