@@ -63,6 +63,10 @@ const dict = {
     // upload
     upload_video: 'Загрузить видео',
     upload_drop: 'или перетащите файлы сюда',
+    scan_library: 'Сканировать папку',
+    scanning: 'Сканирование…',
+    scan_done: 'Добавлено: {n}',
+    scan_error: 'Не удалось просканировать',
     up_done: 'готово',
     up_error: 'ошибка',
     // subtitle customization
@@ -163,6 +167,10 @@ const dict = {
     lib_processing: 'processing {pct}%',
     upload_video: 'Upload video',
     upload_drop: 'or drop files here',
+    scan_library: 'Scan folder',
+    scanning: 'Scanning…',
+    scan_done: 'Added: {n}',
+    scan_error: 'Scan failed',
     up_done: 'done',
     up_error: 'error',
     cc_settings: 'Subtitle settings',

@@ -26,6 +26,11 @@ export const deleteVideo = async (id) => {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
 }
 
+// scanLibrary registers video files dropped/symlinked into the media folder
+// (shared library + VR under media/vr). Returns { added }.
+export const scanLibrary = () =>
+  fetch('/api/library/scan', { method: 'POST' }).then(json)
+
 export const me = () => fetch('/api/me').then(json)
 
 export const login = (username, password) =>

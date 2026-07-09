@@ -94,6 +94,25 @@
     ensurePolling()
   }
 
+  // Register files dropped/symlinked into the media folder (covers VR files
+  // under media/vr too, which land in the VR library).
+  let scanning = $state(false)
+  let scanMsg = $state('')
+  async function scanLibrary() {
+    scanning = true
+    scanMsg = ''
+    try {
+      const { added } = await api.scanLibrary()
+      scanMsg = t('scan_done', { n: added })
+      await refresh()
+    } catch {
+      scanMsg = t('scan_error')
+    } finally {
+      scanning = false
+      setTimeout(() => (scanMsg = ''), 4000)
+    }
+  }
+
   function ensurePolling() {
     const anyProcessing = videos.some((v) => v.status === 'processing')
     if (anyProcessing && !pollTimer) {
@@ -215,6 +234,12 @@
     <Room currentVideoId={currentId} />
     {#if user.is_admin}
       <Upload onDone={refresh} />
+      <div class="scan">
+        <button class="btn-ghost scan-btn" onclick={scanLibrary} disabled={scanning}>
+          {scanning ? t('scanning') : t('scan_library')}
+        </button>
+        {#if scanMsg}<div class="scan-msg">{scanMsg}</div>{/if}
+      </div>
     {/if}
     <VideoList {videos} {currentId} {etas} onSelect={selectVideo} />
   </aside>
@@ -277,6 +302,10 @@
     justify-content: space-between;
     gap: var(--sp-3);
   }
+  .scan { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .scan-btn { width: 100%; }
+  .scan-msg { font-size: var(--text-xs); color: var(--text-muted); text-align: center; }
+
   .brand { display: flex; align-items: center; gap: var(--sp-2); }
   .logo { width: 26px; height: 26px; filter: drop-shadow(var(--glow-accent)); }
   .brand h1 {

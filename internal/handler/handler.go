@@ -170,6 +170,66 @@ func (h *Handler) DeleteVideo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// videoExts are the source containers the scanner registers.
+var videoExts = map[string]bool{
+	".mp4": true, ".mkv": true, ".m2ts": true, ".ts": true, ".mov": true,
+	".m4v": true, ".avi": true, ".webm": true, ".wmv": true, ".mpg": true, ".mpeg": true,
+}
+
+// ScanLibrary walks the media directory and registers any video files not
+// already in the library as pending — so files can be added by dropping (or
+// symlinking) them into the mounted media folder instead of uploading through
+// the browser or writing DB rows by hand. Files under media/vr join the VR
+// library. Admin-only. Symlinked files are followed (os.Stat); a symlink's
+// target must itself be visible inside the container to resolve.
+func (h *Handler) ScanLibrary(w http.ResponseWriter, r *http.Request) {
+	existing, err := db.ListVideoPaths(r.Context(), h.pool)
+	if err != nil {
+		log.Printf("scan: list paths: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	vrRoot := filepath.Join(h.mediaRoot, "vr")
+	added := 0
+	walkErr := filepath.WalkDir(h.mediaRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip unreadable entries, keep scanning
+		}
+		if d.IsDir() {
+			// Never register from the tus staging dir.
+			if d.Name() == ".uploads" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		// Stat follows symlinks so a linked file is seen as its real target.
+		info, serr := os.Stat(path)
+		if serr != nil || info.IsDir() {
+			return nil
+		}
+		if !videoExts[strings.ToLower(filepath.Ext(path))] {
+			return nil
+		}
+		if existing[path] {
+			return nil
+		}
+		isVR := path == vrRoot || strings.HasPrefix(path, vrRoot+string(os.PathSeparator))
+		title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		if err := db.InsertScannedVideo(r.Context(), h.pool, title, path, isVR); err != nil {
+			log.Printf("scan: insert %s: %v", path, err)
+			return nil
+		}
+		existing[path] = true // guard against a duplicate within this walk
+		added++
+		return nil
+	})
+	if walkErr != nil {
+		log.Printf("scan: walk: %v", walkErr)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"added": added})
+}
+
 // underMediaRoot reports whether path is a file strictly inside the media
 // library directory (not the root itself, not an escaping path). Used to bound
 // destructive source-file deletion.

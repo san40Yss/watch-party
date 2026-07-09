@@ -160,6 +160,8 @@ func main() {
 			r.Use(authsvc.RequireAdmin)
 			r.Post("/api/videos/{id}/process", h.ProcessVideo)
 			r.Delete("/api/videos/{id}", h.DeleteVideo)
+			// Register files dropped/symlinked into the media folder.
+			r.Post("/api/library/scan", h.ScanLibrary)
 			// tus resumable uploads (POST/PATCH/HEAD/DELETE under this prefix).
 			// tusd's router matches on the path with its base stripped, so strip
 			// the prefix here (BasePath stays /api/upload/ for its Location URLs).
