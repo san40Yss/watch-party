@@ -9,18 +9,31 @@
   let layer = $state(null) // overlay filling the player area (drag reference)
   let dragging = $state(false)
   let layerH = $state(0)
+  let videoH = $state(0) // painted video height, published by Player as --wp-video-h
 
-  function measure() { if (layer) layerH = layer.clientHeight }
+  function measure() {
+    if (layer) layerH = layer.clientHeight
+    // Read the actual video height Player measured, so the preview scales off
+    // the same reference as the real captions (not the letterboxed container).
+    const mp = document.querySelector('media-player')
+    if (mp) {
+      const v = parseFloat(getComputedStyle(mp).getPropertyValue('--wp-video-h'))
+      videoH = v > 0 ? v : 0
+    }
+  }
   $effect(() => {
     if (!open) return
     measure()
     const on = () => measure()
     window.addEventListener('resize', on)
-    return () => window.removeEventListener('resize', on)
+    // The video height can settle a beat after the panel opens (metadata load).
+    const t = setInterval(measure, 500)
+    return () => { window.removeEventListener('resize', on); clearInterval(t) }
   })
 
-  // Approximates Vidstack's cue size: overlayHeight * 4.5% * multiplier.
-  const previewPx = $derived(Math.max(10, layerH * 0.045 * caption.size))
+  // Matches the real cue size: videoHeight * 4.5% * multiplier (falls back to
+  // the layer height until the video is measured).
+  const previewPx = $derived(Math.max(10, (videoH || layerH) * 0.045 * caption.size))
 
   function set(key, val) { caption[key] = val; persistCaption() }
 

@@ -58,6 +58,48 @@
     }
   })
 
+  // Caption size must track the actual VIDEO height, not the player container.
+  // When the window letterboxes the video (black bars), the container is much
+  // taller than the picture, so sizing captions off the container makes them
+  // oversized in windowed mode (and correct only in fullscreen, where video ==
+  // container). We measure the painted video height and expose it as
+  // --wp-video-h; the caption CSS and the settings preview both read it, so
+  // they scale together and match. Falls back to --player-height until the
+  // <video> exists.
+  $effect(() => {
+    if (!player) return
+    const el = player
+    let ro = null
+
+    const sync = () => {
+      const v = el.querySelector('video')
+      if (!v) return
+      const rect = v.getBoundingClientRect()
+      let h = rect.height
+      // Handle either layout (element sized to the video, or object-fit:contain
+      // with letterbox inside the element): use the smaller of box height and
+      // the aspect-derived content height.
+      if (v.videoWidth && v.videoHeight && rect.width) {
+        h = Math.min(rect.height, (rect.width * v.videoHeight) / v.videoWidth)
+      }
+      if (h > 0) el.style.setProperty('--wp-video-h', h.toFixed(1) + 'px')
+    }
+
+    // Re-measure on player resize, fullscreen changes, and when a new video's
+    // dimensions become known.
+    ro = new ResizeObserver(sync)
+    ro.observe(el)
+    el.addEventListener('resize', sync) // Vidstack fires this with video dims
+    document.addEventListener('fullscreenchange', sync)
+    sync()
+
+    return () => {
+      ro?.disconnect()
+      el.removeEventListener('resize', sync)
+      document.removeEventListener('fullscreenchange', sync)
+    }
+  })
+
   // Control seam. Two halves, deliberately kept apart:
   //
   //  - OUTBOUND: Vidstack's "request" events fire only on user intent (play
@@ -148,10 +190,12 @@
      cues directly (Vidstack's built-in caption-settings owns the --media-user-*
      vars and strips them at init, so we can't ride those). Vidstack styles cues
      with :where() (zero specificity); !important also beats its per-cue inline
-     styles. Size is a multiplier on the standard 4.5%-of-height cue size, using
-     Vidstack's own --player-height (kept current across resize/fullscreen). */
+     styles. Size is a multiplier on the standard 4.5%-of-height cue size, based
+     on the painted VIDEO height (--wp-video-h, set in script) so captions stay
+     proportional to the picture in windowed mode too — not the letterboxed
+     container. Falls back to --player-height before the video is measured. */
   :global(.vds-captions) {
-    font-size: calc(var(--player-height, 400px) / 100 * 4.5 * var(--wp-cc-size, 1)) !important;
+    font-size: calc(var(--wp-video-h, var(--player-height, 400px)) / 100 * 4.5 * var(--wp-cc-size, 1)) !important;
     font-family: var(--wp-cc-font, sans-serif) !important;
   }
   :global(.vds-captions [data-part="cue-display"]) {
