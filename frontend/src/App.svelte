@@ -268,6 +268,7 @@
       {placeholder}
       onLocalAction={localAction}
       onReady={(c) => { controller = c; attachController(c) }}
+      encodedPct={current?.status === 'processing' ? (current.progress || 0) : 100}
     />
     {#if current?.status === 'ready' && current.playback_type === 'hls'}
       <!-- Per-viewer subtitle customization (only HLS videos carry subtitles). -->

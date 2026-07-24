@@ -142,6 +142,15 @@ func ClearProcessed(ctx context.Context, pool *pgxpool.Pool, id int) error {
 	return err
 }
 
+// SetDuration records the source duration as soon as it is probed — before
+// packaging finishes — so a still-processing video can be served as a
+// full-length playlist instead of a growing live one.
+func SetDuration(ctx context.Context, pool *pgxpool.Pool, id int, duration float64) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE videos SET duration = $1 WHERE id = $2`, duration, id)
+	return err
+}
+
 // SetWatchable publishes the HLS master of a still-processing video: the
 // package is already playable while ffmpeg keeps appending segments, so the
 // UI can start playback before the status flips to ready.

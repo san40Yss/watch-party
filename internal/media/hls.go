@@ -38,8 +38,9 @@ type SubtitleRendition struct {
 // Playback can start while packaging is still running: as soon as the first
 // video segment is on disk, subtitles are extracted (a demux-only pass running
 // alongside the encode), the master playlist is finalized and onWatchable
-// fires. The stream playlists are EVENT-typed, so players keep polling for new
-// segments and flip to normal VOD at the final ENDLIST.
+// fires. On disk the stream playlists grow as segments land (EVENT-typed,
+// ENDLIST only at the end); the HLS handler serves them padded out to the full
+// film length so players treat an in-progress package as a normal VOD.
 func PackageHLS(ctx context.Context, src, outDir string, plan *Plan, targetHeight int, durationSec float64, onProgress func(percent float64), onWatchable func([]SubtitleRendition)) ([]SubtitleRendition, error) {
 	// Start clean so a re-process at different settings (fewer tracks, different
 	// segment naming) doesn't leave orphaned files behind.

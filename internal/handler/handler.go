@@ -1,15 +1,18 @@
 package handler
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -332,9 +335,18 @@ func (h *Handler) StreamVideo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 }
 
+// segmentWait bounds how long a request for a segment the encoder hasn't
+// reached yet is held open. Playback then stalls (and resumes when the segment
+// lands) instead of failing outright.
+const segmentWait = 20 * time.Second
+
 // HLSFile serves any file within a video's HLS package (master.m3u8, per-stream
 // playlists, segments) via X-Accel-Redirect. The player requests these relative
-// to /api/videos/{id}/hls/, e.g. /api/videos/2/hls/stream_aud0/seg_001.m4s.
+// to /api/videos/{id}/hls/, e.g. /api/videos/2/hls/stream_aud0/seg_001.ts.
+//
+// While packaging is still running the variant playlists are served padded to
+// the full film length (see fullLengthPlaylist), and requests for segments the
+// encoder hasn't produced yet wait briefly for them.
 func (h *Handler) HLSFile(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -347,7 +359,117 @@ func (h *Handler) HLSFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad path", http.StatusBadRequest)
 		return
 	}
+	full := filepath.Join(h.processedRoot, strconv.Itoa(id), filepath.Clean(rel))
+
+	switch {
+	case strings.HasPrefix(rel, "stream_") && strings.HasSuffix(rel, ".m3u8"):
+		if pl, ok := h.fullLengthPlaylist(r.Context(), id, full); ok {
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write(pl)
+			return
+		}
+	case strings.HasSuffix(rel, ".ts"):
+		h.awaitSegment(r.Context(), id, full)
+	}
+
 	w.Header().Set("X-Accel-Redirect", "/internal-processed/"+strconv.Itoa(id)+"/"+rel)
+}
+
+// fullLengthPlaylist turns the playlist of a still-encoding rendition into a
+// complete VOD one: the segments written so far keep their real durations, the
+// rest of the film is padded with estimated entries, and ENDLIST closes it.
+//
+// Without this the playlist has no ENDLIST, so players call it a live stream —
+// they pin playback to the "live edge" (the encode frontier), which is why
+// resuming after a pause used to jump forward, and why there was no seek bar
+// for the whole film. Reports false when the playlist is already complete (the
+// encode finished) or the length isn't known yet, leaving it served as-is.
+func (h *Handler) fullLengthPlaylist(ctx context.Context, id int, path string) ([]byte, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	body := string(data)
+	if strings.Contains(body, "#EXT-X-ENDLIST") {
+		return nil, false // already a finished playlist
+	}
+	video, err := db.GetVideo(ctx, h.pool, id)
+	if err != nil || video.Duration == nil || *video.Duration <= 0 {
+		return nil, false
+	}
+
+	target, covered, segments := 6.0, 0.0, 0
+	var out []string
+	for _, line := range strings.Split(body, "\n") {
+		ln := strings.TrimSpace(line)
+		switch {
+		case ln == "":
+			continue
+		case strings.HasPrefix(ln, "#EXT-X-PLAYLIST-TYPE"):
+			continue // replaced with VOD below
+		case strings.HasPrefix(ln, "#EXT-X-TARGETDURATION:"):
+			if d, err := strconv.ParseFloat(strings.TrimPrefix(ln, "#EXT-X-TARGETDURATION:"), 64); err == nil && d > 0 {
+				target = d
+			}
+		case strings.HasPrefix(ln, "#EXTINF:"):
+			v, _, _ := strings.Cut(strings.TrimPrefix(ln, "#EXTINF:"), ",")
+			if d, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+				covered += d
+			}
+		case !strings.HasPrefix(ln, "#"):
+			segments++ // a segment URI: also the index of the next one
+		}
+		out = append(out, ln)
+	}
+	if segments == 0 {
+		return nil, false // nothing playable listed yet
+	}
+
+	// Pad the not-yet-encoded remainder. ffmpeg cuts on keyframes, so these are
+	// estimates — MPEG-TS carries real timestamps, so playback stays correct and
+	// only seek targeting in that region is approximate.
+	for total := *video.Duration; covered < total-0.5; segments++ {
+		d := math.Min(target, total-covered)
+		out = append(out, fmt.Sprintf("#EXTINF:%.6f,", d), fmt.Sprintf("seg_%03d.ts", segments))
+		covered += d
+	}
+
+	for i, ln := range out {
+		if strings.HasPrefix(ln, "#EXTM3U") {
+			out = slices.Insert(out, i+1, "#EXT-X-PLAYLIST-TYPE:VOD")
+			break
+		}
+	}
+	out = append(out, "#EXT-X-ENDLIST", "")
+	return []byte(strings.Join(out, "\n")), true
+}
+
+// awaitSegment blocks until a segment the encoder hasn't written yet appears,
+// up to segmentWait. Only waits while the video is actually being processed, so
+// a bogus name on a finished package still 404s immediately.
+func (h *Handler) awaitSegment(ctx context.Context, id int, path string) {
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+	if video, err := db.GetVideo(ctx, h.pool, id); err != nil || video.Status != "processing" {
+		return
+	}
+	tick := time.NewTicker(250 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.After(segmentWait)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline:
+			return
+		case <-tick.C:
+			if _, err := os.Stat(path); err == nil {
+				return
+			}
+		}
+	}
 }
 
 // accelFor maps an absolute container path to the matching nginx internal

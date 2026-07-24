@@ -95,6 +95,9 @@ func (p *Processor) run(videoID, targetHeight int) error {
 	}
 
 	duration := parseDuration(probe.Format.Duration)
+	// Publish the length up front: the HLS handler needs it to serve the
+	// in-progress package as a full-length (seekable) playlist.
+	_ = db.SetDuration(ctx, p.pool, videoID, duration)
 
 	// Skip-if-ready: the source is already browser-playable (MP4 + H.264 +
 	// browser-safe audio), so serve it directly — no remux, no extra disk.

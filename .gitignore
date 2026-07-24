@@ -30,3 +30,4 @@ media-info-examples
 *_bdinfo.txt
 *_UHD.txt
 frontend/public/tus.min.js
+docker-compose.override.yml

@@ -21,6 +21,10 @@
     // it tears down. Step 5 drives play/pause/seek from incoming room events
     // through this handle.
     onReady = null,
+    // How much of the film is packaged, 0..100. Below 100 the video is being
+    // watched while it encodes: the seek bar dims past that point and seeking
+    // is held there (nothing exists beyond it yet).
+    encodedPct = 100,
   } = $props()
 
   let player = $state(null)
@@ -36,9 +40,7 @@
       const p = e.detail
       if (p?.type === 'hls') {
         p.library = HLS
-        // startPosition 0: a still-processing video plays as a growing EVENT
-        // playlist, and hls.js would otherwise start at the live edge (the
-        // encode frontier) instead of the beginning of the film.
+        // startPosition 0: always open a film at its beginning.
         p.config = { ...p.config, renderTextTracksNatively: false, startPosition: 0 }
       }
     }
@@ -100,6 +102,22 @@
     }
   })
 
+  // Watching a film while it encodes: seeking past the frontier would stall on
+  // segments that don't exist yet, so pull the seek back to it. encodedPct is
+  // read inside the handler rather than the effect body, so the listener isn't
+  // re-registered on every progress tick.
+  $effect(() => {
+    if (!player) return
+    const el = player
+    const clamp = () => {
+      if (encodedPct >= 100) return
+      const limit = (el.duration || 0) * (encodedPct / 100) - 3
+      if (limit > 0 && el.currentTime > limit) el.currentTime = limit
+    }
+    el.addEventListener('seeking', clamp)
+    return () => el.removeEventListener('seeking', clamp)
+  })
+
   // Control seam. Two halves, deliberately kept apart:
   //
   //  - OUTBOUND: Vidstack's "request" events fire only on user intent (play
@@ -149,7 +167,13 @@
 {#if src}
   <!-- captionVars feeds Vidstack's --media-user-* caption styling plus our
        --cap-* position vars — all per-viewer, from the caption store. -->
-  <media-player bind:this={player} {title} {src} style={captionVars(caption)}>
+  <media-player
+    bind:this={player}
+    {title}
+    {src}
+    data-encoding={encodedPct < 100 || undefined}
+    style="{captionVars(caption)};--wp-encoded:{Math.min(100, Math.max(0, encodedPct))}%"
+  >
     <media-provider></media-provider>
     <media-video-layout></media-video-layout>
   </media-player>
@@ -208,6 +232,21 @@
     width: max-content !important;
     max-width: 84% !important;
   }
+  /* Watching while the film is still packaging. The seek bar spans the whole
+     film, but only the encoded part can play — so the track is two-tone: normal
+     up to the frontier, dimmed past it, with a hairline amber marker at the
+     boundary that creeps forward as the encode advances. Scoped to
+     [data-encoding], so a finished film's controls are untouched. */
+  :global(media-player[data-encoding] .vds-time-slider .vds-slider-track) {
+    background: linear-gradient(
+      to right,
+      var(--media-slider-track-bg, rgb(255 255 255 / 0.3)) 0 calc(var(--wp-encoded, 100%) - 1.5px),
+      var(--accent) calc(var(--wp-encoded, 100%) - 1.5px) var(--wp-encoded, 100%),
+      rgb(0 0 0 / 0.55) var(--wp-encoded, 100%) 100%
+    );
+    transition: background 0.6s var(--ease, ease-out);
+  }
+
   :global(.vds-captions [data-part="cue"]) {
     color: var(--wp-cc-color, #fff) !important;
     background-color: var(--wp-cc-bg, rgba(0, 0, 0, 0.75)) !important;
