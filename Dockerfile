@@ -10,5 +10,10 @@ FROM alpine:3.20
 RUN apk add --no-cache ffmpeg ca-certificates
 WORKDIR /app
 COPY --from=builder /app/watchparty .
+# Drop root: the service only needs to read/write the mounted media and
+# processed directories, so a compromise shouldn't come with root in the
+# container. uid 10001 owns nothing else here.
+RUN adduser -D -u 10001 watchparty
+USER watchparty
 EXPOSE 8080
 CMD ["./watchparty"]

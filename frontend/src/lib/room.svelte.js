@@ -118,7 +118,12 @@ function sendCmd(cmd) {
 }
 
 function onMessage(raw) {
-  const msg = JSON.parse(raw)
+  let msg
+  try {
+    msg = JSON.parse(raw)
+  } catch {
+    return // a truncated/garbled frame must not kill the message handler
+  }
   if (msg.type === 'presence') {
     room.members = msg.members
   } else if (msg.type === 'state') {
@@ -129,6 +134,14 @@ function onMessage(raw) {
 }
 
 function openSocket(id) {
+  // Never leave a previous socket running: a reconnect racing a half-open
+  // connection would otherwise leave two live sockets, which shows the same
+  // person twice in presence and doubles every command.
+  if (ws) {
+    ws.onclose = null // this close is ours, not a dropped connection
+    ws.onmessage = null
+    ws.close()
+  }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   ws = new WebSocket(`${proto}://${location.host}/api/rooms/${id}/ws`)
   ws.onmessage = (e) => onMessage(e.data)

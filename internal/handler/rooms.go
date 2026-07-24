@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"math"
 	"net/http"
 	"time"
 
@@ -18,6 +19,10 @@ import (
 
 // Unambiguous alphabet for room codes (no 0/O/1/I).
 const roomIDAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+// maxPosition caps an accepted playback anchor: no film runs 1000 hours, so
+// anything beyond it is malformed or malicious.
+const maxPosition = 3_600_000
 
 func newRoomID() (string, error) {
 	b := make([]byte, 6)
@@ -44,7 +49,9 @@ func (h *Handler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		VideoID *int `json:"video_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&body) // body is optional
+	// Body is optional; still size-bounded like every other JSON endpoint.
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	_ = json.NewDecoder(r.Body).Decode(&body)
 
 	// Retry on the (astronomically unlikely) id collision; any other DB error
 	// won't be fixed by a new code, so bail immediately.
@@ -132,6 +139,12 @@ func (h *Handler) handleRoomCommand(roomID string, cmd room.Command) {
 	state := map[string]any{"type": "state", "serverTime": time.Now().UnixMilli()}
 	switch cmd.Type {
 	case "play", "pause", "seek":
+		// The position comes off the wire: keep it a sane, finite number of
+		// seconds. A NaN/Inf anchor would fail to marshal later and leave the
+		// room unable to hand anyone its state.
+		if math.IsNaN(cmd.Time) || math.IsInf(cmd.Time, 0) || cmd.Time < 0 || cmd.Time > maxPosition {
+			return
+		}
 		if err := db.UpdateRoomState(ctx, h.pool, roomID, cmd.Time, cmd.Paused); err != nil {
 			return
 		}

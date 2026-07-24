@@ -61,6 +61,22 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// maxJSONBody bounds request bodies on the JSON endpoints. They all carry a
+// handful of short fields, so anything larger is a mistake or an attempt to
+// make the server buffer arbitrary amounts of memory.
+const maxJSONBody = 8 << 10
+
+// decodeJSON reads a size-limited JSON body. Reports false (after answering
+// 400) when the body is malformed or oversized.
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
 // ListVideos returns the shared film library, or — with ?vr=1, admin-only —
 // the personal VR library (never both: the lists are fully separate).
 func (h *Handler) ListVideos(w http.ResponseWriter, r *http.Request) {
@@ -359,6 +375,20 @@ func (h *Handler) HLSFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad path", http.StatusBadRequest)
 		return
 	}
+	// The package is the video's actual content, so it needs the same access
+	// check as the metadata and the stream: without this, a guest who guesses an
+	// id can watch a VR item in full through its HLS package.
+	video, err := db.GetVideo(r.Context(), h.pool, id)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if video.IsVR {
+		if u := auth.UserFrom(r.Context()); u == nil || !u.IsAdmin {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+	}
 	full := filepath.Join(h.processedRoot, strconv.Itoa(id), filepath.Clean(rel))
 
 	switch {
@@ -498,8 +528,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	user, err := h.authsvc.Login(w, r, body.Username, body.Password)
@@ -516,8 +545,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	user, err := h.authsvc.Register(w, r, body.Username, body.Password)
@@ -544,8 +572,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		Current string `json:"current"`
 		New     string `json:"new"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSON(w, r, &body) {
 		return
 	}
 	if err := h.authsvc.ChangePassword(r, user.ID, body.Current, body.New); err != nil {

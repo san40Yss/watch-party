@@ -73,7 +73,7 @@ your machine's LAN/VPN address (so the room links resolve for them too).
 | `MEDIA_DIR`      | Host path to your source video library (mounted read-write).  |
 | `PROCESSED_DIR`  | Host path where browser-ready HLS output is written.          |
 | `DATABASE_URL`   | Postgres connection (only for running the app outside Docker).  |
-| `DEV_AUTO_LOGIN` | `false` to require login; unset/`true` only for local dev.     |
+| `DEV_AUTO_LOGIN` | `true` makes anonymous requests act as the admin — local dev only. Login is required unless it is set. |
 
 The default database credentials (`wp:wp`) and the seeded `host` / `changeme`
 account are **development defaults** — change them before exposing the app.

@@ -150,6 +150,12 @@ func (s *Service) userFromRequest(r *http.Request) *User {
 	return &u
 }
 
+// dummyHash is a real bcrypt hash of a value nobody uses. An unknown username
+// is verified against it so the request costs the same as a wrong password for
+// a real account — otherwise the timing difference reveals which usernames
+// exist (bcrypt is deliberately slow, so the gap is trivially measurable).
+var dummyHash = []byte("$2a$10$kBVcszwgDpP3elelUQGjyeywKWEj/xsALu4JI8n.08QncahZSFff.")
+
 // Login verifies credentials, creates a session, and sets the cookie.
 // Error messages are stable codes the frontend translates (see i18n).
 func (s *Service) Login(w http.ResponseWriter, r *http.Request, username, password string) (*User, error) {
@@ -159,6 +165,7 @@ func (s *Service) Login(w http.ResponseWriter, r *http.Request, username, passwo
 		`SELECT id, username, password_hash, is_admin FROM users WHERE username = $1`,
 		username).Scan(&u.ID, &u.Username, &hash, &u.IsAdmin)
 	if err != nil {
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 		return nil, errors.New("invalid_credentials")
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {

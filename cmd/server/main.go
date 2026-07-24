@@ -91,9 +91,14 @@ func main() {
 		log.Fatalf("upload handler: %v", err)
 	}
 
-	// Auth seam. DEV_AUTO_LOGIN keeps the app open (anonymous → default user)
-	// until a real login UI exists; flip it off to require authentication.
-	devAutoLogin := os.Getenv("DEV_AUTO_LOGIN") != "false"
+	// Auth seam. DEV_AUTO_LOGIN treats anonymous requests as the seed admin —
+	// a local development convenience that must be opted into explicitly:
+	// defaulting it on would silently hand admin to every visitor of a
+	// deployment that forgot to set the variable.
+	devAutoLogin := os.Getenv("DEV_AUTO_LOGIN") == "true"
+	if devAutoLogin {
+		log.Println("WARNING: DEV_AUTO_LOGIN=true — anonymous requests act as the admin user")
+	}
 	authsvc := auth.New(pool, devAutoLogin)
 	if err := authsvc.EnsureDefaultUser(ctx); err != nil {
 		log.Fatalf("ensure default user: %v", err)

@@ -5,7 +5,9 @@ services:
     environment:
       POSTGRES_DB: watchparty
       POSTGRES_USER: wp
-      POSTGRES_PASSWORD: wp
+      # Set DB_PASSWORD in .env for anything beyond a local box. The database
+      # port is never published, so it is only reachable on the compose network.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wp}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
@@ -22,11 +24,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://wp:wp@db:5432/watchparty?sslmode=disable
+      DATABASE_URL: postgres://wp:${DB_PASSWORD:-wp}@db:5432/watchparty?sslmode=disable
       MEDIA_ROOT: /media
       PROCESSED_ROOT: /processed
-      # Real accounts now exist — require authentication (no anonymous fallback).
-      DEV_AUTO_LOGIN: "false"
+      # Authentication is required by default; DEV_AUTO_LOGIN=true would make
+      # every anonymous request act as the admin (local development only).
     volumes:
       # Set MEDIA_DIR in .env to point to your actual media folder on the host.
       # Default falls back to ./testmedia (for quick smoke tests with small files).

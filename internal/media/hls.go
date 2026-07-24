@@ -176,8 +176,10 @@ func packageAV(ctx context.Context, src, outDir string, plan *Plan, targetHeight
 	sm.WriteString("v:0,agroup:aud,name:video")
 	for i, a := range plan.AudioTracks {
 		fmt.Fprintf(&sm, " a:%d,agroup:aud,name:aud%d", i, i)
-		if a.Language != "" {
-			sm.WriteString(",language:" + a.Language)
+		// Sanitized: -var_stream_map is comma/colon-delimited, so a language tag
+		// carrying either (metadata is arbitrary) would corrupt the mapping.
+		if lang := langSafe(a.Language); lang != "" {
+			sm.WriteString(",language:" + lang)
 		}
 		if i == 0 {
 			sm.WriteString(",default:yes")
@@ -307,6 +309,44 @@ func extractSubtitles(ctx context.Context, src, outDir string, plan *Plan, durat
 
 var nameAttrRe = regexp.MustCompile(`NAME="[^"]*"`)
 
+// playlistSafe makes a string safe to embed in an HLS quoted attribute. Track
+// titles and language tags come from the source file's metadata, which is
+// attacker-controlled for any downloaded media: a title containing a newline
+// would end the playlist line and let the file inject arbitrary directives
+// (#EXT-X-KEY, extra renditions) into the playlist every viewer loads. Per the
+// spec a quoted-string may not contain CR, LF or a double quote — drop those
+// and every other control character, then bound the length.
+func playlistSafe(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if r == '"' || r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > 80 {
+		s = strings.TrimSpace(string(r[:80]))
+	}
+	return s
+}
+
+// langSafe reduces a language tag to the letters/dashes a tag may contain, so
+// metadata can't break out of ffmpeg's comma-separated -var_stream_map syntax
+// or an HLS LANGUAGE attribute.
+func langSafe(s string) string {
+	s = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '-':
+			return r
+		}
+		return -1
+	}, s)
+	if len(s) > 12 {
+		s = s[:12]
+	}
+	return s
+}
+
 // rewriteMaster fixes the audio NAMEs ffmpeg emits (to friendly labels) and adds
 // the subtitle renditions, wiring SUBTITLES="subs" onto the video stream so
 // players show a subtitle menu.
@@ -322,7 +362,10 @@ func rewriteMaster(masterPath string, audio []AudioPlan, subs []SubtitleRenditio
 		switch {
 		case strings.HasPrefix(ln, "#EXT-X-MEDIA:TYPE=AUDIO"):
 			if audioIdx < len(audio) {
-				ln = nameAttrRe.ReplaceAllString(ln, `NAME="`+audioLabel(audio[audioIdx], audioIdx)+`"`)
+				// ReplaceAllString expands $1-style refs in the replacement, so
+				// the (sanitized, but still arbitrary) label goes in literally.
+				name := `NAME="` + playlistSafe(audioLabel(audio[audioIdx], audioIdx)) + `"`
+				ln = nameAttrRe.ReplaceAllLiteralString(ln, name)
 			}
 			audioIdx++
 		case strings.HasPrefix(ln, "#EXT-X-STREAM-INF:"):
@@ -350,7 +393,8 @@ func subtitleMediaLine(s SubtitleRendition) string {
 	return fmt.Sprintf(
 		`#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="%s",LANGUAGE="%s",`+
 			`DEFAULT=NO,AUTOSELECT=NO,FORCED=%s,URI="%s"`,
-		subtitleLabel(s), s.Language, forced, "subs/s"+strconv.Itoa(s.TrackIndex)+".m3u8")
+		playlistSafe(subtitleLabel(s)), langSafe(s.Language), forced,
+		"subs/s"+strconv.Itoa(s.TrackIndex)+".m3u8")
 }
 
 func subtitleLabel(s SubtitleRendition) string {
