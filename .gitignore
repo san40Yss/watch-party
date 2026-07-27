@@ -31,3 +31,4 @@ media-info-examples
 *_UHD.txt
 frontend/public/tus.min.js
 docker-compose.override.yml
+frontend/public/amam.js
