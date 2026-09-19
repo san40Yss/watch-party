@@ -41,7 +41,24 @@
       if (p?.type === 'hls') {
         p.library = HLS
         // startPosition 0: always open a film at its beginning.
-        p.config = { ...p.config, renderTextTracksNatively: false, startPosition: 0 }
+        p.config = {
+          ...p.config,
+          renderTextTracksNatively: false,
+          startPosition: 0,
+          // Buffer deeper than the hls.js defaults (30s / 60MB). Segments here
+          // run 4-10 MB per 6 seconds, so the default size cap — not the time
+          // target — was the binding limit, leaving barely half a minute of
+          // lead on the heavier films. A bigger lead rides out a guest's flaky
+          // Wi-Fi without stalling everyone's sync.
+          maxBufferLength: 90,
+          maxBufferSize: 150 * 1000 * 1000,
+          // Bounded, where hls.js defaults to keeping everything watched: with
+          // a deeper forward buffer, an unbounded back buffer pushes the
+          // browser's own MSE quota and makes it evict in bursts. Two minutes
+          // still covers instant rewind; older parts come back from the
+          // browser's disk cache, which holds segments for an hour.
+          backBufferLength: 120,
+        }
       }
     }
     // When the film changes, drop the previous source's subtitle tracks so the
