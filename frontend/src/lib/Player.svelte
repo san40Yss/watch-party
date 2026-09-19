@@ -45,19 +45,18 @@
           ...p.config,
           renderTextTracksNatively: false,
           startPosition: 0,
-          // Buffer deeper than the hls.js defaults (30s / 60MB). Segments here
-          // run 4-10 MB per 6 seconds, so the default size cap — not the time
-          // target — was the binding limit, leaving barely half a minute of
-          // lead on the heavier films. A bigger lead rides out a guest's flaky
-          // Wi-Fi without stalling everyone's sync.
-          maxBufferLength: 90,
-          maxBufferSize: 150 * 1000 * 1000,
-          // Bounded, where hls.js defaults to keeping everything watched: with
-          // a deeper forward buffer, an unbounded back buffer pushes the
-          // browser's own MSE quota and makes it evict in bursts. Two minutes
-          // still covers instant rewind; older parts come back from the
-          // browser's disk cache, which holds segments for an hour.
-          backBufferLength: 120,
+          // Buffer deeply. A viewer on a long-haul link (Europe -> US here)
+          // sustains only a little above a film's AVERAGE bitrate, while action
+          // scenes spike well past it; the lead built up during quiet stretches
+          // is what carries them through. Size is the binding limit in practice
+          // — 300 MB is roughly 6 minutes of a 0.8 MB/s film.
+          maxBufferLength: 300,
+          maxBufferSize: 300 * 1000 * 1000,
+          // Kept short on purpose: the back buffer competes for the same
+          // browser memory quota as the lead, and the lead is what prevents
+          // stalls. A minute still covers a "what did he say" rewind, and
+          // anything older comes back from the browser's disk cache.
+          backBufferLength: 60,
         }
       }
     }
