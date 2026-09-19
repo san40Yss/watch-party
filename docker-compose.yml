@@ -52,6 +52,8 @@ services:
       # nginx also needs direct access to /media to serve file bytes via X-Accel-Redirect
       - ${MEDIA_DIR:-./testmedia}:/media:ro
       - ${PROCESSED_DIR:-./processed-data}:/processed:ro
+      # Public share folder, served (no login) at /download.html — see nginx.conf.
+      - ${DOWNLOAD_DIR:-./download-data}:/download:ro
 
 volumes:
   pgdata:

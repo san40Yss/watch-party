@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Download</title>
+  <style>
+    :root {
+      --bg: #0a0a0c;
+      --surface: #17171b;
+      --surface-2: #1e1e24;
+      --border: #26262e;
+      --accent: #e0a852;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --faint: #6a6a72;
+      --error: #e5575d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 2rem 1rem 4rem;
+      display: flex;
+      justify-content: center;
+    }
+    .wrap { width: 100%; max-width: 780px; }
+    header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+    h1 { font-size: 1.15rem; margin: 0; color: var(--accent); }
+    .sub { font-size: 0.83rem; color: var(--muted); margin: 0 0 1.2rem; }
+    .crumbs { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.8rem; word-break: break-all; }
+    .crumbs a { color: var(--accent); text-decoration: none; }
+    .crumbs a:hover { text-decoration: underline; }
+
+    ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    li {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    li:hover { border-color: #3a3a44; }
+    .icon { flex-shrink: 0; color: var(--faint); display: grid; place-items: center; }
+    .info { flex: 1; min-width: 0; }
+    .name { font-size: 0.93rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { font-size: 0.74rem; color: var(--faint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+    a.name-link { color: var(--text); text-decoration: none; }
+    a.name-link:hover { color: var(--accent); }
+    .get {
+      flex-shrink: 0;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      background: transparent;
+      border-radius: 8px;
+      padding: 0.38rem 0.8rem;
+      font: inherit;
+      font-size: 0.8rem;
+      text-decoration: none;
+    }
+    .get:hover { background: rgba(224, 168, 82, 0.12); }
+    .msg { color: var(--muted); font-size: 0.9rem; }
+    .msg.bad { color: var(--error); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12m0 0-4.5-4.5M12 15l4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+      </svg>
+      <h1>Download</h1>
+    </header>
+    <p class="sub">Файлы для скачивания.</p>
+    <div class="crumbs" id="crumbs"></div>
+    <div id="out"><p class="msg">Загрузка…</p></div>
+  </div>
+  <script src="/download.js"></script>
+</body>
+</html>
